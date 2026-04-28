@@ -16,7 +16,7 @@ export default function Login() {
         </div>
         
         <h1 className="text-4xl font-serif font-bold text-[#2D4F1E] mb-2 tracking-tight">EcoVerse</h1>
-        <p className="text-[#5C6B5C] mb-12 font-medium italic">Gerbang Simulasi Ekosistem & Literasi Biologi SMA</p>
+        <p className="text-[#5C6B5C] mb-12 font-medium italic">Gamifikasi Ekosistem & Literasi Biologi SMA</p>
         
         <div className="space-y-4">
           <button 
