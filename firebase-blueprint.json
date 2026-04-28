@@ -1,0 +1,129 @@
+{
+  "entities": {
+    "userProfile": {
+      "title": "User Profile",
+      "description": "Stores user progress and gamification data.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "xp": { "type": "number" },
+        "level": { "type": "number" },
+        "completedQuizzes": { "type": "number" }
+      },
+      "required": ["uid", "email"]
+    },
+    "ecosystemSave": {
+      "title": "Ecosystem Save State",
+      "description": "Snapshot of a user's sandbox state.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "habitat": { "type": "string" },
+        "organisms": { "type": "array" },
+        "state": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name"]
+    },
+    "quizQuestion": {
+      "title": "Quiz Question",
+      "description": "Customizable quiz questions stored in Firestore.",
+      "type": "object",
+      "properties": {
+        "question": { "type": "string" },
+        "options": { "type": "array" },
+        "correctIndex": { "type": "number" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["question", "options", "correctIndex"]
+    },
+    "learningMaterial": {
+      "title": "Learning Material",
+      "description": "Educational content for the encyclopedia, organized by class and chapter.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "grade": { "type": "string" },
+        "chapter": { "type": "string" },
+        "category": { "type": "string" },
+        "question": { "type": "string" },
+        "answer": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["grade", "chapter", "category", "question", "answer"]
+    },
+    "labState": {
+      "title": "Virtual Lab State",
+      "description": "Saved settings for virtual lab experiments.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "labId": { "type": "string" },
+        "data": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "labId", "data"]
+    },
+    "storyProgress": {
+      "title": "Story Progress",
+      "description": "Linear story progression and state for missions.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "currentSceneId": { "type": "number" },
+        "phase": { "type": "string" },
+        "state": { "type": "object" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["uid", "currentSceneId", "phase", "state"]
+    },
+    "quizResult": {
+      "title": "Quiz Result",
+      "description": "Daily exam results for the leaderboard.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "score": { "type": "number" },
+        "totalQuestions": { "type": "number" },
+        "xpEarned": { "type": "number" },
+        "date": { "type": "string" },
+        "createdAt": { "type": "object" }
+      },
+      "required": ["uid", "displayName", "score", "totalQuestions", "xpEarned", "date"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "userProfile",
+      "description": "Individual user data."
+    },
+    "/saves/{saveId}": {
+      "schema": "ecosystemSave",
+      "description": "Saved sandbox states."
+    },
+    "/quizzes/{quizId}": {
+      "schema": "quizQuestion",
+      "description": "Custom quiz questions reachable by all."
+    },
+    "/labs/{stateId}": {
+      "schema": "labState",
+      "description": "Saved lab experiment states."
+    },
+    "/materials/{materialId}": {
+      "schema": "learningMaterial",
+      "description": "Educational encyclopedia entries."
+    },
+    "/storyProgress/{progressId}": {
+      "schema": "storyProgress",
+      "description": "Saved story progress for users."
+    },
+    "/quizResults/{resultId}": {
+      "schema": "quizResult",
+      "description": "Daily quiz outcomes for rankings."
+    }
+  }
+}

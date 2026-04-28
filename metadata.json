@@ -1,0 +1,6 @@
+{
+  "name": "EcoVerse - Media Belajar Ekologi SMA",
+  "description": "Media pembelajaran interaktif ekosistem, populasi, dan siklus biogeokimia untuk siswa SMA dengan simulator real-time dan analisis data.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["AI Analysis", "Ecosystem Simulation"]
+}

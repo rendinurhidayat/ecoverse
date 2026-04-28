@@ -1,0 +1,154 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- SHARED HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isVerified() && request.auth.uid == uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- COLLECTION RULES ---
+
+    // 1. Users Collection
+    match /users/{uid} {
+      function isValidUser(data) {
+        return data.uid == request.auth.uid 
+          && data.email is string && data.email.size() <= 200
+          && (data.xp is number || !data.keys().has('xp'))
+          && (data.level is number || !data.keys().has('level'))
+          && (data.displayName is string || !data.keys().has('displayName'))
+          && (data.completedQuizzes is number || !data.keys().has('completedQuizzes'))
+          && (data.challengeProgress is map || !data.keys().has('challengeProgress'));
+      }
+
+      allow get: if isOwner(uid);
+      allow create: if isOwner(uid) && isValidUser(incoming());
+      allow update: if isOwner(uid) 
+        && isValidUser(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['xp', 'level', 'displayName', 'completedQuizzes', 'unlockedHabitats', 'badges', 'challengeProgress', 'updatedAt']);
+    }
+
+    // 2. Ecosystem Saves
+    match /saves/{saveId} {
+      function isValidSave(data) {
+        return data.uid == request.auth.uid
+          && data.name is string && data.name.size() <= 100
+          && (data.habitat is string || !data.keys().has('habitat'))
+          && (data.organisms is list || !data.keys().has('organisms'))
+          && (data.organisms.size() <= 1000 || !data.keys().has('organisms'))
+          && (data.state is map || !data.keys().has('state'))
+          && (data.createdAt is timestamp || !data.keys().has('createdAt'))
+          && (data.updatedAt is timestamp || !data.keys().has('updatedAt'));
+      }
+
+      // Secure list query requires client to filter by uid == request.auth.uid
+      allow list: if isVerified() && resource.data.uid == request.auth.uid;
+      allow get: if isValidId(saveId) && isVerified() && resource.data.uid == request.auth.uid;
+      allow create: if isValidId(saveId) && isVerified() && isValidSave(incoming());
+      allow update: if isValidId(saveId) && isVerified() && resource.data.uid == request.auth.uid && isValidSave(incoming());
+      allow delete: if isValidId(saveId) && isVerified() && resource.data.uid == request.auth.uid;
+    }
+
+    // 3. Quizzes
+    match /quizzes/{quizId} {
+      function isValidQuiz(data) {
+        return data.question is string && data.question.size() <= 500
+          && data.options is list && data.options.size() >= 2
+          && data.correctIndex is int;
+      }
+
+      // Strictly enforce that readers only see quizzes (no blanket reads if it contains sensitive data, 
+      // but here they are public learning resources)
+      allow read: if isVerified();
+      allow create: if isVerified() && isValidQuiz(incoming());
+      allow update: if isVerified() && (existing().createdBy == request.auth.uid || !existing().keys().has('createdBy')) && isValidQuiz(incoming());
+    }
+
+    // 4. Lab States
+    match /labs/{stateId} {
+      function isValidLabState(data) {
+        return data.uid == request.auth.uid
+          && data.labId is string
+          && data.data is map;
+      }
+
+      allow list: if isVerified() && resource.data.uid == request.auth.uid;
+      allow get: if isValidId(stateId) && isVerified() && resource.data.uid == request.auth.uid;
+      allow create: if isValidId(stateId) && isVerified() && isValidLabState(incoming());
+      allow update: if isValidId(stateId) && isVerified() && resource.data.uid == request.auth.uid && isValidLabState(incoming());
+      allow delete: if isValidId(stateId) && isVerified() && resource.data.uid == request.auth.uid;
+    }
+
+    // 5. Learning Materials
+    match /materials/{materialId} {
+      function isValidMaterial(data) {
+        return data.category is string 
+          && data.grade is string
+          && data.chapter is string
+          && data.question is string && data.question.size() <= 500
+          && data.answer is string && data.answer.size() <= 2000;
+      }
+
+      allow read: if isVerified();
+      allow create: if isVerified() && isValidMaterial(incoming());
+      allow update, delete: if isVerified() && (existing().createdBy == request.auth.uid || !existing().keys().has('createdBy')) && isValidMaterial(incoming());
+    }
+
+    // 6. Story Progress
+    match /storyProgress/{progressId} {
+      function isValidStoryProgress(data) {
+        return data.uid == request.auth.uid
+          && data.currentSceneId is int
+          && data.phase is string
+          && data.state is map
+          && (data.selectedChoiceIndex is int || data.selectedChoiceIndex == null || !data.keys().has('selectedChoiceIndex'));
+      }
+
+      allow list: if isVerified() && resource.data.uid == request.auth.uid; 
+      allow get: if isValidId(progressId) && isVerified() && resource.data.uid == request.auth.uid;
+      allow create: if isValidId(progressId) && isVerified() && isValidStoryProgress(incoming());
+      allow update: if isValidId(progressId) && isVerified() && resource.data.uid == request.auth.uid && isValidStoryProgress(incoming());
+    }
+
+    // 7. Quiz Results (Leaderboard)
+    match /quizResults/{resultId} {
+      function isValidQuizResult(data) {
+        return data.uid == request.auth.uid
+          && data.displayName is string && data.displayName.size() <= 100
+          && data.score is number
+          && data.totalQuestions is number
+          && data.xpEarned is number
+          && data.date is string && data.date.size() == 10
+          && (data.createdAt == request.time || data.createdAt == null);
+      }
+
+      allow list: if isVerified() && resource.data.date != null;
+      allow get: if isVerified();
+      allow create: if isVerified() && isValidQuizResult(incoming());
+    }
+  }
+}
