@@ -22,6 +22,14 @@ const CHALLENGE_POOL: Challenge[] = [
   { id: '6', title: 'Pembaca Setia', description: 'Buka 5 materi ensiklopedia berbeda.', reward: 100, type: 'learn', difficulty: 'easy', targetValue: 5 },
   { id: '7', title: 'Predator Puncak', description: 'Tambahkan 5 Elang di hutan.', reward: 150, type: 'sandbox', difficulty: 'medium', targetValue: 5 },
   { id: '8', title: 'Fotosintesis Maksimal', description: 'Capai kadar oksigen 100% di Lab.', reward: 200, type: 'lab', difficulty: 'medium', targetValue: 100 },
+  { id: '9', title: 'Penguasa Padang Rumput', description: 'Tambahkan 20 herbivora di Sandbox.', reward: 150, type: 'sandbox', difficulty: 'medium', targetValue: 20 },
+  { id: '10', title: 'Rantai Makanan Seimbang', description: 'Tambahkan 10 karnivora di Sandbox.', reward: 200, type: 'sandbox', difficulty: 'medium', targetValue: 10 },
+  { id: '11', title: 'Langit Ramai', description: 'Tambahkan 10 burung di langit.', reward: 120, type: 'sandbox', difficulty: 'medium', targetValue: 10 },
+  { id: '12', title: 'Pasukan Kecil', description: 'Tambahkan 30 serangga di ekosistem.', reward: 120, type: 'sandbox', difficulty: 'medium', targetValue: 30 },
+  { id: '13', title: 'Mata Air Murni', description: 'Capai kualitas air 100% di Sandbox.', reward: 200, type: 'sandbox', difficulty: 'medium', targetValue: 100 },
+  { id: '14', title: 'Pelajar Tekun', description: 'Selesaikan 3 sesi kuis hari ini.', reward: 300, type: 'quiz', difficulty: 'medium', targetValue: 3 },
+  { id: '15', title: 'Wawasan Luas', description: 'Buka 10 materi ensiklopedia.', reward: 200, type: 'learn', difficulty: 'medium', targetValue: 10 },
+  { id: '16', title: 'Saintis Muda', description: 'Simulasikan 3 skenario lab berbeda.', reward: 300, type: 'lab', difficulty: 'hard', targetValue: 3 },
 ];
 
 export default function ChallengeModule({ profile, onComplete, onNavigate }: { profile: UserProfile | null, onComplete: (xp: number) => void, onNavigate?: (tab: 'sandbox' | 'quiz' | 'lab' | 'learn') => void }) {

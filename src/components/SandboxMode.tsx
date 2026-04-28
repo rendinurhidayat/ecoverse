@@ -89,21 +89,34 @@ export default function SandboxMode({ engine, uid, onSaveSuccess, onXpGain, onUp
   useEffect(() => {
     if (!onUpdateProgress) return;
     
-    // Challenge 1: 10 flora (id '1')
-    if (state.plants > 0) {
-      onUpdateProgress('1', Math.min(10, state.plants));
-    }
+    // Flora tracking (Challenge 1)
+    if (state.plants > 0) onUpdateProgress('1', Math.min(10, Math.floor(state.plants)));
     
-    // Challenge 3: Stability > 85% (id '3')
-    if (state.stability >= 85) {
-      onUpdateProgress('3', 85);
+    // Stability tracking (Challenge 3)
+    if (state.stability >= 85) onUpdateProgress('3', 85);
+
+    // Biodiversity tracking (Challenge 5)
+    if (state.biodiversity >= 70) onUpdateProgress('5', 70);
+
+    // Birds tracking (Challenge 7 & 11)
+    if (state.birds > 0) {
+      onUpdateProgress('7', Math.min(5, Math.floor(state.birds)));
+      onUpdateProgress('11', Math.min(10, Math.floor(state.birds)));
     }
 
-    // Challenge 5: Biodiversity > 70% (id '5')
-    if (state.biodiversity >= 70) {
-      onUpdateProgress('5', 70);
-    }
-  }, [state.plants, state.stability, state.biodiversity, onUpdateProgress]);
+    // Herbivores tracking (Challenge 9)
+    if (state.herbivores > 0) onUpdateProgress('9', Math.min(20, Math.floor(state.herbivores)));
+
+    // Carnivores tracking (Challenge 10)
+    if (state.carnivores > 0) onUpdateProgress('10', Math.min(10, Math.floor(state.carnivores)));
+
+    // Insects tracking (Challenge 12)
+    if (state.insects > 0) onUpdateProgress('12', Math.min(30, Math.floor(state.insects)));
+
+    // Water Quality tracking (Challenge 13)
+    if (state.waterQuality >= 100) onUpdateProgress('13', 100);
+
+  }, [state, onUpdateProgress]);
 
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);

@@ -6,13 +6,31 @@ import { Flashcard } from '../types';
 import { FLASHCARDS } from '../constants';
 import { GoogleGenAI, Type } from "@google/genai";
 
-export default function LearningModule() {
+export default function LearningModule({ profile, onUpdateProgress }: { profile: any, onUpdateProgress?: (id: string, prog: number) => void }) {
   const [materials, setMaterials] = useState<Flashcard[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [readMaterials, setReadMaterials] = useState<Set<string>>(new Set());
+
+  const handleRead = (id: string) => {
+    if (!onUpdateProgress || !id) return;
+    if (!readMaterials.has(id)) {
+      const next = new Set(readMaterials);
+      next.add(id);
+      setReadMaterials(next);
+      
+      // Challenge 6: Buka 5 materi (id '6')
+      onUpdateProgress('6', Math.min(5, next.size));
+      
+      // Challenge 15: Buka 10 materi (id '15')
+      onUpdateProgress('15', Math.min(10, next.size));
+    }
+  };
+
   const [selectedGrade, setSelectedGrade] = useState<string>('Semua');
   const [selectedChapter, setSelectedChapter] = useState<string>('Semua');
   const [editing, setEditing] = useState<Partial<Flashcard> | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importText, setImportText] = useState('');
@@ -60,8 +78,13 @@ export default function LearningModule() {
       alert("Materi ini tidak dapat dihapus (ID tidak ditemukan).");
       return;
     }
-    if (!confirm("Hapus materi ini?")) return;
-    await deleteMaterial(id);
+    setDeletingId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingId) return;
+    await deleteMaterial(deletingId);
+    setDeletingId(null);
     loadMaterials();
   };
 
@@ -259,6 +282,7 @@ export default function LearningModule() {
                 material={m} 
                 onEdit={() => setEditing(m)} 
                 onDelete={() => handleDelete(m.id || '')} 
+                onFlip={() => handleRead(m.id || '')}
               />
             </motion.div>
           ))}
@@ -385,6 +409,36 @@ export default function LearningModule() {
             </motion.form>
           </div>
         )}
+
+        {deletingId && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-gray-900/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-[32px] p-10 w-full max-w-sm shadow-2xl relative border border-gray-100 text-center"
+            >
+              <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-red-500">
+                <Trash2 size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Hapus Materi?</h3>
+              <p className="text-sm text-gray-500 mb-8 leading-relaxed">Tindakan ini tidak dapat dibatalkan. Materi akan dihapus permanen dari sistem.</p>
+              
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setDeletingId(null)}
+                  className="flex-1 py-4 bg-gray-100 text-gray-600 rounded-xl font-bold text-[12px] uppercase tracking-widest hover:bg-gray-200 transition-all"
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={confirmDelete}
+                  className="flex-1 py-4 bg-red-500 text-white rounded-xl font-bold text-[12px] uppercase tracking-widest shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all"
+                >
+                  Hapus
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
     </div>
   );
@@ -394,10 +448,17 @@ interface MaterialCardProps {
   material: Flashcard;
   onEdit: () => void;
   onDelete: () => void;
+  onFlip?: () => void;
 }
 
-function MaterialCard({ material, onEdit, onDelete }: MaterialCardProps) {
+function MaterialCard({ material, onEdit, onDelete, onFlip }: MaterialCardProps) {
   const [flipped, setFlipped] = useState(false);
+  
+  const handleFlip = () => {
+    if (!flipped && onFlip) onFlip();
+    setFlipped(!flipped);
+  };
+
   return (
     <div className="relative h-96 cursor-pointer perspective-1000 group">
        <div className="absolute top-5 right-5 z-20 flex gap-2 opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100">
@@ -418,7 +479,7 @@ function MaterialCard({ material, onEdit, onDelete }: MaterialCardProps) {
       <motion.div 
         animate={{ rotateY: flipped ? 180 : 0 }}
         transition={{ type: 'spring', stiffness: 200, damping: 25 }}
-        onClick={() => setFlipped(!flipped)}
+        onClick={handleFlip}
         className="w-full h-full relative preserve-3d"
       >
         {/* Front Side - Question */}
@@ -428,7 +489,7 @@ function MaterialCard({ material, onEdit, onDelete }: MaterialCardProps) {
               <BookOpen size={20} />
             </div>
             <p className="text-[10px] font-bold text-[#A4C400] uppercase tracking-widest mb-4 font-sans">{material.category}</p>
-            <h4 className="text-xl font-bold text-gray-900 leading-tight px-2 font-sans break-words w-full">
+            <h4 className="text-xl font-bold text-gray-900 leading-tight px-2 font-serif italic break-words w-full">
               {material.question}
             </h4>
           </div>

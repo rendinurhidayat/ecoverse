@@ -7,8 +7,30 @@ import {
 
 type LabType = 'water' | 'carbon' | 'nitrogen' | 'phosphorus' | 'sulfur' | 'games';
 
-export default function VirtualLab({ onXpGain }: { onXpGain?: (xp: number) => void }) {
+export default function VirtualLab({ onXpGain, onUpdateProgress, profile }: { onXpGain?: (xp: number) => void, onUpdateProgress?: (id: string, prog: number) => void, profile?: any }) {
   const [activeLab, setActiveLab] = useState<LabType>('water');
+  const [simulatedLabs, setSimulatedLabs] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!onUpdateProgress) return;
+    
+    // Track unique lab simulations
+    if (activeLab !== 'games' && !simulatedLabs.has(activeLab)) {
+        const next = new Set(simulatedLabs);
+        next.add(activeLab);
+        setSimulatedLabs(next);
+        
+        // Challenge 4: 1 scenario (id '4')
+        onUpdateProgress('4', 1);
+        
+        // Challenge 16: 3 scenarios (id '16')
+        onUpdateProgress('16', Math.min(3, next.size));
+    }
+  }, [activeLab, onUpdateProgress]);
+
+  // Track Oxygen 100% (Challenge 8)
+  // This is a bit tricky since it's child-state, but I'll add the check inside the components or lift state.
+  // For now, I'll focus on the ones I can track easily.
 
   return (
     <div className="space-y-8 pb-32">
@@ -30,7 +52,7 @@ export default function VirtualLab({ onXpGain }: { onXpGain?: (xp: number) => vo
            transition={{ duration: 0.4, ease: "easeOut" }}
         >
           {activeLab === 'water' && <WaterCycleLab />}
-          {activeLab === 'carbon' && <CarbonCycleLab />}
+          {activeLab === 'carbon' && <CarbonCycleLab onUpdateProgress={onUpdateProgress} />}
           {activeLab === 'nitrogen' && <NitrogenCycleLab />}
           {activeLab === 'phosphorus' && <PhosphorusCycleLab />}
           {activeLab === 'sulfur' && <SulfurCycleLab />}
@@ -136,9 +158,15 @@ function WaterCycleLab() {
   );
 }
 
-function CarbonCycleLab() {
+function CarbonCycleLab({ onUpdateProgress }: { onUpdateProgress?: (id: string, prog: number) => void }) {
   const [emissions, setEmissions] = useState(30);
   const [forests, setForests] = useState(60);
+
+  useEffect(() => {
+    if (onUpdateProgress && forests >= 100) {
+      onUpdateProgress('8', 100);
+    }
+  }, [forests, onUpdateProgress]);
   
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

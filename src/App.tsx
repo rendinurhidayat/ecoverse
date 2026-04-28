@@ -221,7 +221,7 @@ export default function App() {
                   uid={user?.uid} 
                   onSaveSuccess={refreshSaves} 
                   onXpGain={handleXpGain}
-                  onUpdateProgress={(id, prog) => user && updateChallengeProgress(user.uid, id, prog).then(updated => updated && setProfile(updated))}
+                  onUpdateProgress={(id, prog) => { if (user) updateChallengeProgress(user.uid, id, prog).then(updated => updated && setProfile(updated)); }}
                 />
               </div>
             )}
@@ -237,15 +237,27 @@ export default function App() {
             )}
             {activeTab === 'lab' && (
               <div key="lab">
-                <VirtualLab onXpGain={handleXpGain} />
+                <VirtualLab 
+                  onXpGain={handleXpGain} 
+                  onUpdateProgress={(id, prog) => { if (user) updateChallengeProgress(user.uid, id, prog).then(updated => updated && setProfile(updated)); }}
+                  profile={profile}
+                />
               </div>
             )}
-            {activeTab === 'learn' && <LearningModule key="learn" />}
+            {activeTab === 'learn' && (
+              <div key="learn">
+                <LearningModule 
+                  profile={profile}
+                  onUpdateProgress={(id, prog) => { if (user) updateChallengeProgress(user.uid, id, prog).then(updated => updated && setProfile(updated)); }}
+                />
+              </div>
+            )}
             {activeTab === 'quiz' && (
               <DailyExam 
                 profile={profile}
                 onXpGain={handleXpGain} 
                 onBack={() => setActiveTab('sandbox')}
+                onUpdateProgress={(id, prog) => { if (user) updateChallengeProgress(user.uid, id, prog).then(updated => updated && setProfile(updated)); }}
               />
             )}
             {activeTab === 'settings' && <SettingsModule profile={profile} />}

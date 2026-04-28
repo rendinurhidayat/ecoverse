@@ -50,11 +50,13 @@ const QUESTION_POOL: Question[] = [
 export default function DailyExam({ 
   profile,
   onXpGain, 
-  onBack 
+  onBack,
+  onUpdateProgress
 }: { 
   profile: any;
   onXpGain?: (xp: number) => void;
   onBack: () => void;
+  onUpdateProgress?: (id: string, prog: number) => void;
 }) {
   const [examStarted, setExamStarted] = useState(false);
   const [examCompleted, setExamCompleted] = useState(false);
@@ -123,6 +125,18 @@ export default function DailyExam({
     const xpEarned = score * 40; // 40 XP per correct answer = 800 XP max
     
     if (onXpGain) onXpGain(xpEarned);
+    
+    // Update Challenge Progress
+    if (onUpdateProgress) {
+        // Challenge 14: Selesaikan 3 sesi kuis (id '14')
+        const currentQuizCount = profile?.challengeProgress?.['14'] || 0;
+        onUpdateProgress('14', Math.min(3, currentQuizCount + 1));
+
+        // Challenge 2: Selesaikan 1 sesi kuis tanpa salah (id '2')
+        if (score === dailyQuestions.length) {
+            onUpdateProgress('2', 1);
+        }
+    }
 
     // Save result to Firestore
     if (auth.currentUser) {
