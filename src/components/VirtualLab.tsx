@@ -6,10 +6,10 @@ import {
 } from 'lucide-react';
 import { subscribeToLabState, saveLabState } from '../services/dbService';
 
-type LabType = 'water' | 'carbon' | 'nitrogen' | 'phosphorus' | 'sulfur' | 'games';
+type LabType = 'water' | 'carbon' | 'nitrogen' | 'phosphorus' | 'sulfur' | 'biosphere' | 'games';
 
 export default function VirtualLab({ onXpGain, onUpdateProgress, profile, uid }: { onXpGain?: (xp: number) => void, onUpdateProgress?: (id: string, prog: number) => void, profile?: any, uid?: string }) {
-  const [activeLab, setActiveLab] = useState<LabType>('water');
+  const [activeLab, setActiveLab] = useState<LabType>('biosphere');
   const [simulatedLabs, setSimulatedLabs] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -42,6 +42,7 @@ export default function VirtualLab({ onXpGain, onUpdateProgress, profile, uid }:
         <LabTab active={activeLab === 'nitrogen'} onClick={() => setActiveLab('nitrogen')} icon={<Wind size={16}/>} label="Nitrogen" />
         <LabTab active={activeLab === 'phosphorus'} onClick={() => setActiveLab('phosphorus')} icon={<Mountain size={16}/>} label="Fosfor" />
         <LabTab active={activeLab === 'sulfur'} onClick={() => setActiveLab('sulfur')} icon={<Zap size={16}/>} label="Sulfur" />
+        <LabTab active={activeLab === 'biosphere'} onClick={() => setActiveLab('biosphere')} icon={<Activity size={16}/>} label="Biosfer" />
         <LabTab active={activeLab === 'games'} onClick={() => setActiveLab('games')} icon={<Brain size={16}/>} label="Game Center" />
       </div>
 
@@ -57,6 +58,7 @@ export default function VirtualLab({ onXpGain, onUpdateProgress, profile, uid }:
           {activeLab === 'nitrogen' && <NitrogenCycleLab uid={uid} />}
           {activeLab === 'phosphorus' && <PhosphorusCycleLab uid={uid} />}
           {activeLab === 'sulfur' && <SulfurCycleLab uid={uid} />}
+          {activeLab === 'biosphere' && <BiosphereCycleLab uid={uid} />}
           {activeLab === 'games' && <GameCenter onXpGain={onXpGain} />}
         </motion.div>
       </div>
@@ -484,6 +486,149 @@ function SulfurCycleLab({ uid }: { uid?: string }) {
             <p className="text-xs opacity-80 leading-relaxed font-medium">Sulfur adalah komponen esensial dari asam amino seperti sistein dan metionin yang mendasari struktur protein mahkluk hidup.</p>
          </div>
       </div>
+    </div>
+  );
+}
+
+function BiosphereCycleLab({ uid }: { uid?: string }) {
+  const [carbonLevel, setCarbonLevel] = useState(40);
+  const [nitrogenLevel, setNitrogenLevel] = useState(50);
+  const [phosphorusLevel, setPhosphorusLevel] = useState(30);
+  const [energyFlow, setEnergyFlow] = useState(70);
+  const [dbStateId, setDbStateId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!uid) return;
+    const unsub = subscribeToLabState(uid, 'biosphere', (state) => {
+      if (state) {
+        setCarbonLevel(state.data.carbon ?? 40);
+        setNitrogenLevel(state.data.nitrogen ?? 50);
+        setPhosphorusLevel(state.data.phosphorus ?? 30);
+        setEnergyFlow(state.data.energy ?? 70);
+        setDbStateId(state.id || null);
+      }
+    });
+    return unsub;
+  }, [uid]);
+
+  const handleUpdate = async (type: string, val: number) => {
+    let nextCarbon = carbonLevel;
+    let nextNitrogen = nitrogenLevel;
+    let nextPhosphorus = phosphorusLevel;
+    let nextEnergy = energyFlow;
+
+    if (type === 'carbon') nextCarbon = val;
+    if (type === 'nitrogen') nextNitrogen = val;
+    if (type === 'phosphorus') nextPhosphorus = val;
+    if (type === 'energy') nextEnergy = val;
+
+    setCarbonLevel(nextCarbon);
+    setNitrogenLevel(nextNitrogen);
+    setPhosphorusLevel(nextPhosphorus);
+    setEnergyFlow(nextEnergy);
+
+    if (uid) {
+      await saveLabState({
+        id: dbStateId || undefined,
+        uid,
+        labId: 'biosphere',
+        data: { carbon: nextCarbon, nitrogen: nextNitrogen, phosphorus: nextPhosphorus, energy: nextEnergy }
+      });
+    }
+  };
+
+  const stability = 100 - (Math.abs(40 - carbonLevel) + Math.abs(50 - nitrogenLevel) + Math.abs(30 - phosphorusLevel) + Math.abs(70 - energyFlow)) / 4;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="lg:col-span-2 bg-[#F0F7FF] border border-gray-100 rounded-[48px] p-12 min-h-[600px] relative overflow-hidden shadow-sm flex flex-col">
+         <div className="flex justify-between items-start z-10 mb-12">
+            <div>
+               <h3 className="text-4xl font-serif font-black text-[#2D4F1E] italic tracking-tight">Keseimbangan Biosfer</h3>
+               <p className="text-gray-400 mt-2 font-medium">Global Elemental Balance & Energy Flow</p>
+            </div>
+            <div className={`px-6 py-3 rounded-2xl border-2 flex flex-col items-end ${stability > 80 ? 'bg-green-50 border-green-200 text-green-700' : stability > 60 ? 'bg-yellow-50 border-yellow-200 text-yellow-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+               <span className="text-[10px] font-black uppercase tracking-widest">Stabilitas Global</span>
+               <span className="text-2xl font-mono font-black">{Math.floor(stability)}%</span>
+            </div>
+         </div>
+
+         <div className="flex-1 flex items-center justify-center relative">
+            {/* Visual Representation of Elements as Interacting Spheres */}
+            <div className="relative w-80 h-80">
+               <motion.div 
+                 animate={{ scale: carbonLevel / 50, x: -40, y: -40 }}
+                 className="absolute inset-0 bg-gray-800/20 rounded-full blur-3xl"
+               />
+               <motion.div 
+                 animate={{ scale: nitrogenLevel / 50, x: 40, y: -40 }}
+                 className="absolute inset-0 bg-blue-500/20 rounded-full blur-3xl"
+               />
+               <motion.div 
+                 animate={{ scale: phosphorusLevel / 50, x: 0, y: 40 }}
+                 className="absolute inset-0 bg-orange-500/20 rounded-full blur-3xl"
+               />
+               
+               <div className="relative z-10 w-full h-full border-4 border-dashed border-gray-200 rounded-full flex items-center justify-center overflow-hidden bg-white/40 backdrop-blur-sm">
+                  <motion.div 
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 20, ease: "linear" }}
+                    className="text-9xl grayscale opacity-20"
+                  >
+                    🌍
+                  </motion.div>
+                  
+                  <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
+                     <ElementIndicator label="C" value={carbonLevel} color="bg-gray-700" />
+                     <ElementIndicator label="N" value={nitrogenLevel} color="bg-blue-600" />
+                     <ElementIndicator label="P" value={phosphorusLevel} color="bg-orange-500" />
+                     <ElementIndicator label="E" value={energyFlow} color="bg-yellow-400" />
+                  </div>
+               </div>
+            </div>
+         </div>
+
+         <div className="mt-12 grid grid-cols-4 gap-4 z-10">
+            <StatsBox label="Atmosfer" value={`${carbonLevel}%`} />
+            <StatsBox label="Tanah" value={`${nitrogenLevel}%`} />
+            <StatsBox label="Geosfer" value={`${phosphorusLevel}%`} />
+            <StatsBox label="Biomassa" value={`${energyFlow}%`} />
+         </div>
+      </div>
+
+      <div className="space-y-4">
+         <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100 space-y-4">
+            <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Kontrol Global</p>
+            <LabControl label="Konsentrasi Karbon" value={carbonLevel} onChange={(v: number) => handleUpdate('carbon', v)} icon={<Activity size={14}/>} />
+            <LabControl label="Kandungan Nitrogen" value={nitrogenLevel} onChange={(v: number) => handleUpdate('nitrogen', v)} icon={<Wind size={14}/>} />
+            <LabControl label="Deposit Fosfor" value={phosphorusLevel} onChange={(v: number) => handleUpdate('phosphorus', v)} icon={<Mountain size={14}/>} />
+            <LabControl label="Aliran Energi" value={energyFlow} onChange={(v: number) => handleUpdate('energy', v)} icon={<Sun size={14}/>} />
+         </div>
+         <div className="p-8 bg-[#4A7C44] rounded-[40px] text-white">
+            <h4 className="font-serif font-bold text-lg mb-2">Simbiogenesis Global</h4>
+            <p className="text-xs opacity-80 leading-relaxed font-medium">Seluruh siklus biogeokimia saling terikat. Ketidakseimbangan pada satu siklus (seperti lonjakan karbon) akan memicu kaskade efek pada siklus nitrogen dan fosfor melalui perubahan metabolisme ekosistem.</p>
+         </div>
+      </div>
+    </div>
+  );
+}
+
+function ElementIndicator({ label, value, color }: { label: string, value: number, color: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center p-4 border border-gray-100/50">
+       <span className="text-[10px] font-black text-gray-400 mb-1">{label}</span>
+       <div className="w-1.5 h-12 bg-gray-100 rounded-full overflow-hidden">
+          <motion.div animate={{ height: `${value}%` }} className={`w-full ${color}`} />
+       </div>
+    </div>
+  );
+}
+
+function StatsBox({ label, value }: { label: string, value: string }) {
+  return (
+    <div className="bg-white border border-gray-100 p-4 rounded-2xl shadow-sm text-center">
+       <p className="text-[8px] font-black text-gray-300 uppercase tracking-widest mb-1">{label}</p>
+       <p className="text-sm font-mono font-black text-[#2D4F1E]">{value}</p>
     </div>
   );
 }

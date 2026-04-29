@@ -56,14 +56,38 @@ export default function LearningModule({ profile, onUpdateProgress }: { profile:
 
   const handleSeedMaterials = async () => {
     setLoading(true);
+    let imported = 0;
     for (const f of FLASHCARDS) {
-      await saveMaterial(f);
+      const isDuplicate = materials.some(m => 
+        m.question.toLowerCase().trim() === f.question.toLowerCase().trim() &&
+        m.grade === f.grade &&
+        m.chapter === f.chapter
+      );
+      if (!isDuplicate) {
+        await saveMaterial(f);
+        imported++;
+      }
     }
+    if (imported === 0) alert("Semua materi standar sudah ada.");
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editing?.question || !editing?.answer) return;
+    
+    // Check for duplicates (case insensitive)
+    const isDuplicate = materials.some(m => 
+      m.id !== editing.id && 
+      m.question.toLowerCase().trim() === editing.question?.toLowerCase().trim() &&
+      m.grade === editing.grade &&
+      m.chapter === editing.chapter
+    );
+
+    if (isDuplicate) {
+      alert("Materi dengan pertanyaan ini sudah ada di bab dan kelas yang sama.");
+      return;
+    }
+
     await saveMaterial(editing as Flashcard);
     setEditing(null);
   };
@@ -130,22 +154,45 @@ export default function LearningModule({ profile, onUpdateProgress }: { profile:
     }
 
     setLoading(true);
+    let importedCount = 0;
+    let duplicateCount = 0;
+
     for (const line of lines) {
       const parts = line.split(':');
-      const q = parts[0];
-      const a = parts.slice(1).join(':');
+      const q = parts[0].trim();
+      const a = parts.slice(1).join(':').trim();
+      
+      const grade = selectedGrade !== 'Semua' ? selectedGrade : '10';
+      const chapter = selectedChapter !== 'Semua' ? selectedChapter : GRADE_CHAPTERS[grade][0];
+
+      // Local duplicate check within existing materials
+      const isDuplicate = materials.some(m => 
+        m.question.toLowerCase().trim() === q.toLowerCase() &&
+        m.grade === grade &&
+        m.chapter === chapter
+      );
+
+      if (isDuplicate) {
+        duplicateCount++;
+        continue;
+      }
       
       const material: Flashcard = {
-        grade: selectedGrade !== 'Semua' ? selectedGrade : '10',
-        chapter: selectedChapter !== 'Semua' ? selectedChapter : GRADE_CHAPTERS[selectedGrade !== 'Semua' ? selectedGrade : '10'][0],
+        grade,
+        chapter,
         category: 'Dasar',
-        question: q.trim(),
-        answer: a.trim()
+        question: q,
+        answer: a
       };
       await saveMaterial(material);
+      importedCount++;
     }
     setImportText('');
     setImporting(false);
+    
+    if (duplicateCount > 0) {
+      alert(`Berhasil mengimpor ${importedCount} materi. ${duplicateCount} materi dilewati karena duplikasi.`);
+    }
   };
 
   const filtered = materials.filter(m => {
@@ -172,7 +219,7 @@ export default function LearningModule({ profile, onUpdateProgress }: { profile:
         <div className="flex items-center gap-3 w-full md:w-auto">
           <button 
             onClick={() => setImporting(true)}
-            className="p-4 bg-white border border-gray-200 text-gray-400 rounded-2xl hover:text-[#4A7C44] hover:border-[#4A7C44] transition-all"
+            className={`p-4 bg-white border border-gray-200 text-gray-400 rounded-2xl hover:text-[#4A7C44] hover:border-[#4A7C44] transition-all ${profile?.role !== 'guru' ? 'hidden' : ''}`}
             title="Impor Materi"
           >
             <FileUp size={20} />
@@ -180,17 +227,19 @@ export default function LearningModule({ profile, onUpdateProgress }: { profile:
           {materials.length === 0 && !loading && (
              <button 
                onClick={handleSeedMaterials}
-               className="flex-1 md:flex-none px-6 py-4 bg-white border border-[#4A7C44] text-[#4A7C44] rounded-2xl font-bold text-[11px] uppercase tracking-wider hover:bg-[#F1F6EE] transition-all"
+               className={`flex-1 md:flex-none px-6 py-4 bg-white border border-[#4A7C44] text-[#4A7C44] rounded-2xl font-bold text-[11px] uppercase tracking-wider hover:bg-[#F1F6EE] transition-all ${profile?.role !== 'guru' ? 'hidden' : ''}`}
              >
                Impor Standar
              </button>
           )}
-          <button 
-            onClick={() => setEditing({ grade: selectedGrade !== 'Semua' ? selectedGrade : '10', chapter: selectedChapter !== 'Semua' ? selectedChapter : 'BAB 1: Keanekaragaman Hayati', category: 'Dasar', question: '', answer: '' })}
-            className="flex-1 md:flex-none px-8 py-4 bg-[#4A7C44] text-white rounded-2xl font-bold text-[11px] uppercase tracking-wider shadow-lg shadow-[#4A7C44]/20 hover:bg-gray-800 transition-all flex items-center justify-center gap-2"
-          >
-            <Plus size={18} /> Tambah Materi
-          </button>
+          {profile?.role === 'guru' && (
+            <button 
+              onClick={() => setEditing({ grade: selectedGrade !== 'Semua' ? selectedGrade : '10', chapter: selectedChapter !== 'Semua' ? selectedChapter : 'BAB 1: Keanekaragaman Hayati', category: 'Dasar', question: '', answer: '' })}
+              className="flex-1 md:flex-none px-8 py-4 bg-[#4A7C44] text-white rounded-2xl font-bold text-[11px] uppercase tracking-wider shadow-lg shadow-[#4A7C44]/20 hover:bg-gray-800 transition-all flex items-center justify-center gap-2"
+            >
+              <Plus size={18} /> Tambah Materi
+            </button>
+          )}
         </div>
       </div>
 
@@ -276,6 +325,7 @@ export default function LearningModule({ profile, onUpdateProgress }: { profile:
                 onEdit={() => setEditing(m)} 
                 onDelete={() => handleDelete(m.id || '')} 
                 onFlip={() => handleRead(m.id || '')}
+                canEdit={profile?.role === 'guru'}
               />
             </motion.div>
           ))}
@@ -442,9 +492,10 @@ interface MaterialCardProps {
   onEdit: () => void;
   onDelete: () => void;
   onFlip?: () => void;
+  canEdit?: boolean;
 }
 
-function MaterialCard({ material, onEdit, onDelete, onFlip }: MaterialCardProps) {
+function MaterialCard({ material, onEdit, onDelete, onFlip, canEdit }: MaterialCardProps) {
   const [flipped, setFlipped] = useState(false);
   
   const handleFlip = () => {
@@ -454,20 +505,22 @@ function MaterialCard({ material, onEdit, onDelete, onFlip }: MaterialCardProps)
 
   return (
     <div className="relative h-96 cursor-pointer perspective-1000 group">
-       <div className="absolute top-5 right-5 z-20 flex gap-2 opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100">
-          <button 
-            onClick={(e) => { e.stopPropagation(); onEdit(); }}
-            className="p-3 bg-white border border-gray-100 rounded-xl text-gray-400 shadow-xl hover:text-[#4A7C44] hover:border-[#4A7C44] transition-all"
-          >
-            <Edit2 size={14}/>
-          </button>
-          <button 
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="p-3 bg-white border border-gray-100 rounded-xl text-gray-400 shadow-xl hover:text-red-500 hover:border-red-500 transition-all"
-          >
-            <Trash2 size={14}/>
-          </button>
-       </div>
+       {canEdit && (
+         <div className="absolute top-5 right-5 z-20 flex gap-2 opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100">
+            <button 
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
+              className="p-3 bg-white border border-gray-100 rounded-xl text-gray-400 shadow-xl hover:text-[#4A7C44] hover:border-[#4A7C44] transition-all"
+            >
+              <Edit2 size={14}/>
+            </button>
+            <button 
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              className="p-3 bg-white border border-gray-100 rounded-xl text-gray-400 shadow-xl hover:text-red-500 hover:border-red-500 transition-all"
+            >
+              <Trash2 size={14}/>
+            </button>
+         </div>
+       )}
 
       <motion.div 
         animate={{ rotateY: flipped ? 180 : 0 }}

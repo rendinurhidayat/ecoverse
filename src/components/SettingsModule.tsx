@@ -14,19 +14,23 @@ import {
   Award,
   BookOpen,
   Gamepad2,
-  Calendar
+  Calendar,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { UserProfile } from '../types';
-import { addQuiz, updateUserProfile } from '../services/dbService';
+import { addQuiz, updateUserProfile, deleteUserProfile } from '../services/dbService';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function SettingsModule({ profile, onProfileUpdate }: { profile: UserProfile | null, onProfileUpdate?: (updated: UserProfile) => void }) {
+export default function SettingsModule({ profile, onProfileUpdate, onDeleteAccount }: { profile: UserProfile | null, onProfileUpdate?: (updated: UserProfile) => void, onDeleteAccount?: () => void }) {
   // Profile Editor State
   const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editedProfile, setEditedProfile] = useState({
     displayName: profile?.displayName || '',
     school: profile?.school || '',
-    bio: profile?.bio || ''
+    bio: profile?.bio || '',
+    role: profile?.role || 'siswa'
   });
   const [updateLoading, setUpdateLoading] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -37,7 +41,8 @@ export default function SettingsModule({ profile, onProfileUpdate }: { profile: 
       setEditedProfile({
         displayName: profile.displayName || '',
         school: profile.school || '',
-        bio: profile.bio || ''
+        bio: profile.bio || '',
+        role: profile.role || 'siswa'
       });
       setLastSaved(new Date());
     }
@@ -271,11 +276,26 @@ export default function SettingsModule({ profile, onProfileUpdate }: { profile: 
                  </motion.div>
                )}
              </AnimatePresence>
+
+             <div className="pt-8 border-t border-[#E0E7D9]">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 bg-red-50 rounded-2xl border border-red-100">
+                   <div>
+                      <h5 className="text-sm font-bold text-red-700 mb-1">Zona Berbahaya</h5>
+                      <p className="text-xs text-red-600/70 font-medium leading-relaxed">Menghapus akun akan menghapus seluruh progress belajar, XP, dan data simulasi secara permanen.</p>
+                   </div>
+                   <button 
+                     onClick={() => setShowDeleteConfirm(true)}
+                     className="px-6 py-3 bg-white text-red-600 border border-red-200 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-sm flex items-center gap-2"
+                   >
+                     <Trash2 size={14} /> Hapus Akun & Data
+                   </button>
+                </div>
+             </div>
           </div>
         </motion.div>
 
         {/* Editor & Extra Tools */}
-        <div className="space-y-8">
+        <div className={`space-y-8 ${profile?.role !== 'guru' ? 'hidden' : ''}`}>
            <motion.div 
              initial={{ opacity: 0, x: 20 }}
              animate={{ opacity: 1, x: 0 }}
@@ -375,6 +395,49 @@ export default function SettingsModule({ profile, onProfileUpdate }: { profile: 
            </motion.div>
         </div>
       </div>
+      <AnimatePresence>
+         {showDeleteConfirm && (
+           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-red-950/40 backdrop-blur-sm"
+              />
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="relative bg-white rounded-[32px] p-8 max-w-sm w-full text-center shadow-2xl border border-red-100"
+              >
+                 <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-600 mx-auto mb-6">
+                    <AlertTriangle size={32} />
+                 </div>
+                 <h3 className="text-xl font-serif font-black text-[#2D4F1E] mb-2">Hapus Akun Anda?</h3>
+                 <p className="text-sm text-gray-500 mb-8">Tindakan ini tidak dapat dibatalkan. Seluruh progress Anda akan dihapus permanen dari sistem BioGuard.</p>
+                 <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-xs"
+                    >
+                      Batal
+                    </button>
+                    <button 
+                      onClick={async () => {
+                         if (profile) {
+                            const success = await deleteUserProfile(profile.uid);
+                            if (success && onDeleteAccount) onDeleteAccount();
+                         }
+                      }}
+                      className="py-3 bg-red-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-red-200"
+                    >
+                      Ya, Hapus
+                    </button>
+                 </div>
+              </motion.div>
+           </div>
+         )}
+      </AnimatePresence>
     </div>
   );
 }

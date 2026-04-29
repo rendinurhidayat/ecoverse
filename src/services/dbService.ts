@@ -9,11 +9,12 @@ import {
   addDoc, 
   updateDoc,
   deleteDoc,
+  writeBatch,
   serverTimestamp,
   onSnapshot
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { UserProfile, EcosystemSave, QuizQuestion, LabState, Flashcard, StoryProgress, QuizResult } from '../types';
+import { UserProfile, QuizQuestion, LabState, Flashcard, StoryProgress, QuizResult } from '../types';
 
 enum OperationType {
   CREATE = 'create',
@@ -60,16 +61,6 @@ export const subscribeToUserProfile = (uid: string, callback: (profile: UserProf
     }
   }, (error) => {
     handleFirestoreError(error, OperationType.GET, `users/${uid}`);
-  });
-};
-
-export const subscribeToSaves = (uid: string, callback: (saves: EcosystemSave[]) => void) => {
-  const q = query(collection(db, 'saves'), where('uid', '==', uid));
-  return onSnapshot(q, (snapshot) => {
-    const saves = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as EcosystemSave));
-    callback(saves);
-  }, (error) => {
-    handleFirestoreError(error, OperationType.LIST, 'saves');
   });
 };
 
@@ -213,33 +204,6 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
   }
 };
 
-export const saveEcosystem = async (save: EcosystemSave) => {
-  const { id, ...data } = save;
-  const path = id ? `saves/${id}` : 'saves';
-  try {
-    if (id) {
-      await updateDoc(doc(db, 'saves', id), { ...data, updatedAt: serverTimestamp() });
-      return id;
-    } else {
-      const docRef = await addDoc(collection(db, 'saves'), { ...data, createdAt: serverTimestamp() });
-      return docRef.id;
-    }
-  } catch (error) {
-    handleFirestoreError(error, id ? OperationType.UPDATE : OperationType.CREATE, path);
-  }
-};
-
-export const getSaves = async (uid: string): Promise<EcosystemSave[]> => {
-  try {
-    const q = query(collection(db, 'saves'), where('uid', '==', uid));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as EcosystemSave));
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, 'saves');
-    return [];
-  }
-};
-
 export const getQuizzes = async (): Promise<QuizQuestion[]> => {
   try {
     const snap = await getDocs(collection(db, 'quizzes'));
@@ -255,6 +219,36 @@ export const addQuiz = async (quiz: Partial<QuizQuestion>) => {
     await addDoc(collection(db, 'quizzes'), quiz);
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, 'quizzes');
+  }
+};
+
+export const updateQuiz = async (id: string, updates: Partial<QuizQuestion>) => {
+  try {
+    await updateDoc(doc(db, 'quizzes', id), { ...updates, updatedAt: serverTimestamp() });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `quizzes/${id}`);
+  }
+};
+
+export const deleteQuiz = async (id: string) => {
+  try {
+    await deleteDoc(doc(db, 'quizzes', id));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `quizzes/${id}`);
+  }
+};
+
+export const clearQuizBank = async (quizIds: string[]) => {
+  try {
+    const batch = writeBatch(db);
+    quizIds.forEach(id => {
+      batch.delete(doc(db, 'quizzes', id));
+    });
+    await batch.commit();
+    return true;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, 'quizzes/bulk');
+    return false;
   }
 };
 
@@ -361,6 +355,64 @@ export const saveQuizResult = async (result: QuizResult) => {
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, 'quizResults');
+  }
+};
+
+export const getAllUserProfiles = async (): Promise<UserProfile[]> => {
+  try {
+    const snap = await getDocs(collection(db, 'users'));
+    return snap.docs.map(d => ({ ...d.data() } as UserProfile));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, 'users');
+    return [];
+  }
+};
+
+export const getAllQuizResults = async (): Promise<QuizResult[]> => {
+  try {
+    const snap = await getDocs(collection(db, 'quizResults'));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as QuizResult));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, 'quizResults');
+    return [];
+  }
+};
+
+export const getAllLabStates = async (): Promise<LabState[]> => {
+  try {
+    const snap = await getDocs(collection(db, 'labs'));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as LabState));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, 'labs');
+    return [];
+  }
+};
+
+export const deleteUserProfile = async (uid: string) => {
+  try {
+    // 1. Delete associated labs
+    const labsQ = query(collection(db, 'labs'), where('uid', '==', uid));
+    const labsSnap = await getDocs(labsQ);
+    const labDeletes = labsSnap.docs.map(doc => deleteDoc(doc.ref));
+
+    // 2. Delete associated quizResults
+    const quizQ = query(collection(db, 'quizResults'), where('uid', '==', uid));
+    const quizSnap = await getDocs(quizQ);
+    const quizDeletes = quizSnap.docs.map(doc => deleteDoc(doc.ref));
+
+    // 3. Delete associated storyProgress
+    const storyQ = query(collection(db, 'storyProgress'), where('uid', '==', uid));
+    const storySnap = await getDocs(storyQ);
+    const storyDeletes = storySnap.docs.map(doc => deleteDoc(doc.ref));
+
+    // 4. Delete the user profile doc
+    const userDelete = deleteDoc(doc(db, 'users', uid));
+
+    await Promise.all([...labDeletes, ...quizDeletes, ...storyDeletes, userDelete]);
+    return true;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `users/${uid}`);
+    return false;
   }
 };
 

@@ -22,7 +22,29 @@ export default function QuizModule({ profile, onXpGain, onBack, onUpdateProgress
   useEffect(() => {
     const unsub = subscribeToQuizzes((data) => {
       if (data.length > 0) {
-        setQuestions(data);
+        // Daily rotation logic: use current date as seed
+        const today = new Date();
+        const dateStr = today.getFullYear() + '-' + (today.getMonth() + 1) + '-' + today.getDate();
+        
+        // Simple hash/seed based on date
+        let seed = 0;
+        for (let i = 0; i < dateStr.length; i++) {
+          seed += dateStr.charCodeAt(i);
+        }
+
+        // Shuffle questions based on seed
+        const shuffled = [...data].sort((a, b) => {
+          // Use seed to create a deterministic shuffle for the day
+          const idA = a.id || '';
+          const idB = b.id || '';
+          let hashA = 0, hashB = 0;
+          for (let i = 0; i < idA.length; i++) hashA += idA.charCodeAt(i) * seed;
+          for (let i = 0; i < idB.length; i++) hashB += idB.charCodeAt(i) * seed;
+          return (hashA % 100) - (hashB % 100);
+        });
+
+        // Take exactly 10 questions (or all if less than 10)
+        setQuestions(shuffled.slice(0, 10));
       }
       setLoading(false);
     });
@@ -31,9 +53,17 @@ export default function QuizModule({ profile, onXpGain, onBack, onUpdateProgress
 
   const handleSeedQuizzes = async () => {
     setLoading(true);
+    let imported = 0;
+    // We need to fetch current quizzes to check for duplicates
+    // But subscribeToQuizzes is already running and setQuestions is updating
     for (const q of QUIZ_QUESTIONS) {
-       await addQuiz(q);
+       const isDuplicate = questions.some(ex => ex.question.toLowerCase().trim() === q.question.toLowerCase().trim());
+       if (!isDuplicate) {
+         await addQuiz(q);
+         imported++;
+       }
     }
+    if (imported === 0) alert("Semua soal standar sudah ada.");
   };
 
   if (loading) return (

@@ -15,6 +15,13 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email_verified == true;
     }
 
+    function isGuru() {
+      return isVerified() && (
+        request.auth.token.email == 'studiopanlapan@gmail.com' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'guru'
+      );
+    }
+
     function isOwner(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
@@ -49,49 +56,32 @@ service cloud.firestore {
           && (data.lastLogin is string || data.lastLogin is timestamp || !('lastLogin' in data))
           && (data.unlockedHabitats is list || !('unlockedHabitats' in data))
           && (data.badges is list || !('badges' in data))
+          && (data.role is string || !('role' in data))
           && (data.createdAt is timestamp || !('createdAt' in data))
           && (data.updatedAt is timestamp || !('updatedAt' in data));
       }
 
-      allow get: if isOwner(uid);
+      allow list: if isGuru();
+      allow get: if isOwner(uid) || isGuru();
       allow create: if isOwner(uid) && isValidUser(incoming());
       allow update: if isOwner(uid) && isValidUser(incoming());
-    }
-
-    // 2. Ecosystem Saves
-    match /saves/{saveId} {
-      function isValidSave(data) {
-        return data.uid == request.auth.uid
-          && data.name is string && data.name.size() <= 100
-          && (data.habitat is string || !data.keys().has('habitat'))
-          && (data.organisms is list || !data.keys().has('organisms'))
-          && (data.organisms.size() <= 1000 || !data.keys().has('organisms'))
-          && (data.state is map || !data.keys().has('state'))
-          && (data.createdAt is timestamp || !data.keys().has('createdAt'))
-          && (data.updatedAt is timestamp || !data.keys().has('updatedAt'));
-      }
-
-      // Secure list query requires client to filter by uid == request.auth.uid
-      allow list: if isVerified() && resource.data.uid == request.auth.uid;
-      allow get: if isValidId(saveId) && isVerified() && resource.data.uid == request.auth.uid;
-      allow create: if isValidId(saveId) && isVerified() && isValidSave(incoming());
-      allow update: if isValidId(saveId) && isVerified() && resource.data.uid == request.auth.uid && isValidSave(incoming());
-      allow delete: if isValidId(saveId) && isVerified() && resource.data.uid == request.auth.uid;
     }
 
     // 3. Quizzes
     match /quizzes/{quizId} {
       function isValidQuiz(data) {
-        return data.question is string && data.question.size() <= 500
+        return data.question is string && data.question.size() <= 1000
           && data.options is list && data.options.size() >= 2
-          && data.correctIndex is int;
+          && data.correctIndex is int && data.correctIndex >= 0 && data.correctIndex < data.options.size()
+          && (data.category is string || !('category' in data))
+          && (data.difficulty is string || !('difficulty' in data))
+          && (data.createdBy is string || !('createdBy' in data));
       }
 
-      // Strictly enforce that readers only see quizzes (no blanket reads if it contains sensitive data, 
-      // but here they are public learning resources)
       allow read: if isVerified();
-      allow create: if isVerified() && isValidQuiz(incoming());
-      allow update: if isVerified() && (existing().createdBy == request.auth.uid || !existing().keys().has('createdBy')) && isValidQuiz(incoming());
+      allow create: if isGuru() && isValidQuiz(incoming());
+      allow update: if isGuru() && isValidQuiz(incoming());
+      allow delete: if isGuru();
     }
 
     // 4. Lab States
@@ -102,8 +92,8 @@ service cloud.firestore {
           && data.data is map;
       }
 
-      allow list: if isVerified() && resource.data.uid == request.auth.uid;
-      allow get: if isValidId(stateId) && isVerified() && resource.data.uid == request.auth.uid;
+      allow list: if isVerified() && (resource.data.uid == request.auth.uid || isGuru());
+      allow get: if isValidId(stateId) && isVerified() && (resource.data.uid == request.auth.uid || isGuru());
       allow create: if isValidId(stateId) && isVerified() && isValidLabState(incoming());
       allow update: if isValidId(stateId) && isVerified() && resource.data.uid == request.auth.uid && isValidLabState(incoming());
       allow delete: if isValidId(stateId) && isVerified() && resource.data.uid == request.auth.uid;
@@ -116,12 +106,19 @@ service cloud.firestore {
           && data.grade is string
           && data.chapter is string
           && data.question is string && data.question.size() <= 500
-          && data.answer is string && data.answer.size() <= 2000;
+          && data.answer is string && data.answer.size() <= 2000
+          && (data.createdBy is string || !('createdBy' in data))
+          && (data.createdAt is timestamp || !('createdAt' in data))
+          && (data.updatedAt is timestamp || !('updatedAt' in data));
       }
 
       allow read: if isVerified();
       allow create: if isVerified() && isValidMaterial(incoming());
-      allow update, delete: if isVerified() && (existing().createdBy == request.auth.uid || !existing().keys().has('createdBy')) && isValidMaterial(incoming());
+      allow update: if isVerified() 
+        && (isGuru() || existing().createdBy == request.auth.uid || !existing().keys().has('createdBy')) 
+        && isValidMaterial(incoming());
+      allow delete: if isVerified() 
+        && (isGuru() || existing().createdBy == request.auth.uid || !existing().keys().has('createdBy'));
     }
 
     // 6. Story Progress
@@ -134,8 +131,8 @@ service cloud.firestore {
           && (data.selectedChoiceIndex is int || data.selectedChoiceIndex == null || !data.keys().has('selectedChoiceIndex'));
       }
 
-      allow list: if isVerified() && resource.data.uid == request.auth.uid; 
-      allow get: if isValidId(progressId) && isVerified() && resource.data.uid == request.auth.uid;
+      allow list: if isVerified() && (resource.data.uid == request.auth.uid || isGuru()); 
+      allow get: if isValidId(progressId) && isVerified() && (resource.data.uid == request.auth.uid || isGuru());
       allow create: if isValidId(progressId) && isVerified() && isValidStoryProgress(incoming());
       allow update: if isValidId(progressId) && isVerified() && resource.data.uid == request.auth.uid && isValidStoryProgress(incoming());
     }
@@ -152,7 +149,7 @@ service cloud.firestore {
           && (data.createdAt == request.time || data.createdAt == null);
       }
 
-      allow list: if isVerified() && resource.data.date != null;
+      allow list: if isVerified() && (resource.data.date != null || isGuru());
       allow get: if isVerified();
       allow create: if isVerified() && isValidQuizResult(incoming());
     }

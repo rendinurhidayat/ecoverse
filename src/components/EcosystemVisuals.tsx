@@ -16,8 +16,7 @@ function usePrevious<T>(value: T) {
   return ref.current;
 }
 
-export function EcosystemVisuals({ state, onOrganismClick }: EcosystemVisualsProps) {
-  const prevPlants = usePrevious(state.plants);
+export const EcosystemVisuals = React.memo(({ state, onOrganismClick }: EcosystemVisualsProps) => {
   const prevHerbivores = usePrevious(state.herbivores);
   const [eatingEvent, setEatingEvent] = useState(false);
 
@@ -29,8 +28,8 @@ export function EcosystemVisuals({ state, onOrganismClick }: EcosystemVisualsPro
     }
   }, [state.herbivores, state.plants]);
 
-  // Population sampling for display
-  const renderCounts = {
+  // Population sampling for display - Memoized
+  const renderCounts = React.useMemo(() => ({
     birds: Math.min(6, Math.floor(state.birds / 2)),
     insects: Math.min(10, Math.floor(state.insects / 8)),
     plants: Math.min(12, Math.floor(state.plants / 10)),
@@ -39,7 +38,10 @@ export function EcosystemVisuals({ state, onOrganismClick }: EcosystemVisualsPro
     algae: Math.min(10, Math.floor(state.algae / 8)),
     fish: Math.min(8, Math.floor(state.fish / 5)),
     sharks: Math.min(3, Math.max(1, Math.floor(state.sharks / 2))),
-  };
+  }), [
+    state.birds, state.insects, state.plants, state.herbivores, 
+    state.carnivores, state.algae, state.fish, state.sharks
+  ]);
 
   return (
     <div className="relative w-full h-full rounded-[32px] overflow-hidden shadow-inner border border-[#D0DBCA] flex flex-col">
@@ -255,9 +257,9 @@ export function EcosystemVisuals({ state, onOrganismClick }: EcosystemVisualsPro
       )}
     </div>
   );
-}
+});
 
-function WeatherVisualOverlay({ state }: { state: EcosystemState }) {
+const WeatherVisualOverlay = React.memo(({ state }: { state: EcosystemState }) => {
   return (
     <AnimatePresence>
       {state.weather === 'hujan' && (
@@ -278,4 +280,4 @@ function WeatherVisualOverlay({ state }: { state: EcosystemState }) {
       )}
     </AnimatePresence>
   );
-}
+});

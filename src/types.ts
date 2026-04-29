@@ -30,17 +30,7 @@ export interface UserProfile {
   bio?: string;
   streak?: number;
   lastLogin?: any;
-}
-
-export interface EcosystemSave {
-  id?: string;
-  uid: string;
-  name: string;
-  habitat: HabitatType;
-  organisms?: Organism[];
-  state?: EcosystemState;
-  createdAt: any;
-  updatedAt?: any;
+  role?: 'siswa' | 'guru';
 }
 
 export interface EcosystemStats {

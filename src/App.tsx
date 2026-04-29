@@ -47,10 +47,9 @@ import {
   updateUserXP, 
   updateChallengeProgress, 
   updateUserProfile,
-  subscribeToUserProfile,
-  subscribeToSaves
+  subscribeToUserProfile
 } from './services/dbService';
-import { Organism, OrganismType, EcosystemStats, HabitatType, UserProfile, EcosystemSave, QuizQuestion, Flashcard } from './types';
+import { Organism, OrganismType, EcosystemStats, HabitatType, UserProfile, QuizQuestion, Flashcard } from './types';
 import Login from './components/Login';
 import { useEcosystemEngine } from './hooks/useEcosystemEngine';
 import SandboxMode from './components/SandboxMode';
@@ -60,8 +59,10 @@ import LearningModule from './components/LearningModule';
 import SettingsModule from './components/SettingsModule';
 import ChallengeModule from './components/ChallengeModule';
 import DailyExam from './components/DailyExam';
+import TeacherDashboard from './components/TeacherDashboard';
+import TeacherQuizBank from './components/TeacherQuizBank';
 
-function NavButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
+const NavButton = React.memo(({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) => {
   return (
     <button 
       onClick={onClick}
@@ -81,15 +82,20 @@ function NavButton({ active, onClick, icon, label }: { active: boolean, onClick:
       )}
     </button>
   );
-}
+});
 // --- MAIN APP ---
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'sandbox' | 'story' | 'lab' | 'learn' | 'quiz' | 'settings' | 'challenges'>('sandbox');
-  const [viewHistory, setViewHistory] = useState<EcosystemSave[]>([]);
+  const [activeTab, setActiveTab] = useState<'sandbox' | 'story' | 'lab' | 'learn' | 'quiz' | 'settings' | 'challenges' | 'teacher'>('sandbox');
   const ecoEngine = useEcosystemEngine();
+
+  useEffect(() => {
+    if (profile?.role === 'guru' && activeTab === 'sandbox') {
+      setActiveTab('teacher');
+    }
+  }, [profile?.role]);
 
   const handleXpGain = async (xp: number) => {
     if (!user) return;
@@ -106,7 +112,6 @@ export default function App() {
       
       // Cleanup previous subscriptions
       if (unsubProfile) unsubProfile();
-      if (unsubSaves) unsubSaves();
 
       if (firebaseUser) {
         // Initial check/setup
@@ -151,16 +156,10 @@ export default function App() {
           if (updatedProfile) setProfile(updatedProfile);
         });
 
-        // Set up real-time sync for saves
-        unsubSaves = subscribeToSaves(firebaseUser.uid, (saves) => {
-          setViewHistory(saves);
-        });
-
         setUser(firebaseUser);
       } else {
         setUser(null);
         setProfile(null);
-        setViewHistory([]);
       }
       setLoading(false);
     });
@@ -168,7 +167,6 @@ export default function App() {
     return () => {
       unsubAuth();
       if (unsubProfile) unsubProfile();
-      if (unsubSaves) unsubSaves();
     };
   }, []);
 
@@ -189,6 +187,63 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F9FBF7] text-[#2D3A2D] font-sans selection:bg-[#4A7C44] selection:text-white overflow-hidden flex">
+      {/* Role Selection Modal */}
+      <AnimatePresence>
+        {profile && !profile.role && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-[#2D4F1E]/60 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              className="bg-white rounded-[40px] shadow-2xl p-10 max-w-xl w-full border border-white/20 relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-64 h-64 bg-[#4A7C44]/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+              
+              <div className="relative z-10 text-center space-y-8">
+                <div className="w-20 h-20 bg-[#F1F6EE] rounded-[28px] flex items-center justify-center mx-auto text-[#4A7C44] shadow-inner">
+                  <GraduationCap size={40} />
+                </div>
+                
+                <div>
+                  <h2 className="text-3xl font-serif font-bold text-[#2D4F1E] mb-2 leading-tight">Pilih Identitasmu</h2>
+                  <p className="text-sm text-[#5C6B5C] font-medium leading-relaxed max-w-sm mx-auto">
+                    Selamat datang di EcoVerse! Pilih peranmu untuk menyesuaikan pengalaman belajar ekosistem digital.
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-6">
+                  <button 
+                    onClick={() => updateUserProfile(user.uid, { role: 'siswa' })}
+                    className="group relative p-6 bg-[#F1F6EE] rounded-3xl border-2 border-transparent hover:border-[#4A7C44] hover:bg-white transition-all text-left"
+                  >
+                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center mb-4 text-[#4A7C44] shadow-sm group-hover:scale-110 transition-transform">
+                      <Leaf size={20} />
+                    </div>
+                    <p className="font-serif font-bold text-lg text-[#2D4F1E]">Siswa</p>
+                    <p className="text-[10px] text-[#5C6B5C] font-medium leading-tight mt-1">Belajar, bereksperimen, dan selesaikan tantangan ekosistem.</p>
+                  </button>
+                  
+                  <button 
+                    onClick={() => updateUserProfile(user.uid, { role: 'guru' })}
+                    className="group relative p-6 bg-[#F1F6EE] rounded-3xl border-2 border-transparent hover:border-[#2D4F1E] hover:bg-white transition-all text-left"
+                  >
+                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center mb-4 text-[#2D4F1E] shadow-sm group-hover:scale-110 transition-transform">
+                      <GraduationCap size={20} />
+                    </div>
+                    <p className="font-serif font-bold text-lg text-[#2D4F1E]">Guru</p>
+                    <p className="text-[10px] text-[#5C6B5C] font-medium leading-tight mt-1">Pandu kelas, buat materi, dan awasi perkembangan siswa.</p>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
       <nav className="w-20 md:w-64 bg-white border-r border-[#E0E7D9] flex flex-col items-center py-8 px-4 gap-8 shrink-0">
         <div className="flex items-center gap-3 mb-4">
@@ -199,30 +254,42 @@ export default function App() {
         </div>
 
         <div className="flex flex-col gap-2 w-full">
-          <NavButton active={activeTab === 'sandbox'} onClick={() => setActiveTab('sandbox')} icon={<LayoutDashboard size={20} />} label="Sandbox Mode" />
-          <NavButton active={activeTab === 'story'} onClick={() => setActiveTab('story')} icon={<Trophy size={20} />} label="Misi Penjaga" />
-          <NavButton active={activeTab === 'challenges'} onClick={() => setActiveTab('challenges')} icon={<Star size={20} />} label="Tantangan" />
-          <NavButton active={activeTab === 'lab'} onClick={() => setActiveTab('lab')} icon={<Dna size={20} />} label="Lab Virtual" />
-          <NavButton active={activeTab === 'learn'} onClick={() => setActiveTab('learn')} icon={<BrainCircuit size={20} />} label="Materi" />
-          <NavButton active={activeTab === 'quiz'} onClick={() => setActiveTab('quiz')} icon={<HelpCircle size={20} />} label="Ujian" />
+          {profile?.role === 'guru' ? (
+            <>
+              <NavButton active={activeTab === 'teacher'} onClick={() => setActiveTab('teacher')} icon={<LayoutDashboard size={20} />} label="Dashboard Guru" />
+              <NavButton active={activeTab === 'learn'} onClick={() => setActiveTab('learn')} icon={<BrainCircuit size={20} />} label="Ensiklopedia" />
+              <NavButton active={activeTab === 'quiz'} onClick={() => setActiveTab('quiz')} icon={<HelpCircle size={20} />} label="Bank Ujian" />
+            </>
+          ) : (
+            <>
+              <NavButton active={activeTab === 'sandbox'} onClick={() => setActiveTab('sandbox')} icon={<LayoutDashboard size={20} />} label="Sandbox Mode" />
+              <NavButton active={activeTab === 'story'} onClick={() => setActiveTab('story')} icon={<Trophy size={20} />} label="Misi Penjaga" />
+              <NavButton active={activeTab === 'challenges'} onClick={() => setActiveTab('challenges')} icon={<Star size={20} />} label="Tantangan" />
+              <NavButton active={activeTab === 'lab'} onClick={() => setActiveTab('lab')} icon={<Dna size={20} />} label="Lab Virtual" />
+              <NavButton active={activeTab === 'learn'} onClick={() => setActiveTab('learn')} icon={<BrainCircuit size={20} />} label="Materi" />
+              <NavButton active={activeTab === 'quiz'} onClick={() => setActiveTab('quiz')} icon={<HelpCircle size={20} />} label="Ujian" />
+            </>
+          )}
           <NavButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<SettingsIcon size={20} />} label="Profil" />
         </div>
 
         <div className="mt-auto w-full pt-8 border-t border-[#E0E7D9] space-y-4">
-          <div className="bg-[#F1F6EE] p-4 rounded-2xl hidden md:block border border-[#E0E7D9]">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-[10px] font-bold text-[#5C6B5C] uppercase">Level {profile?.level}</span>
-              <Trophy size={14} className="text-[#A4C400]" />
+          {profile?.role !== 'guru' && (
+            <div className="bg-[#F1F6EE] p-4 rounded-2xl hidden md:block border border-[#E0E7D9]">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[10px] font-bold text-[#5C6B5C] uppercase">Level {profile?.level}</span>
+                <Trophy size={14} className="text-[#A4C400]" />
+              </div>
+              <div className="h-2 bg-white rounded-full overflow-hidden border border-[#E0E7D9]">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(profile?.xp || 0) % 1000 / 10}%` }}
+                  className="h-full bg-[#4A7C44]"
+                />
+              </div>
+              <p className="text-[10px] text-center mt-2 font-bold text-[#5C6B5C] tracking-tighter">{(profile?.xp || 0) % 1000} / 1000 XP</p>
             </div>
-            <div className="h-2 bg-white rounded-full overflow-hidden border border-[#E0E7D9]">
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: `${(profile?.xp || 0) % 1000 / 10}%` }}
-                className="h-full bg-[#4A7C44]"
-              />
-            </div>
-            <p className="text-[10px] text-center mt-2 font-bold text-[#5C6B5C] tracking-tighter">{(profile?.xp || 0) % 1000} / 1000 XP</p>
-          </div>
+          )}
           <button 
             onClick={() => signOut()}
             className="flex items-center gap-3 px-4 py-3 text-[#A0B0A0] hover:text-red-500 transition-colors w-full group"
@@ -241,12 +308,18 @@ export default function App() {
               <CheckCircle2 size={10} /> Selamat Datang, {profile?.displayName}
             </h2>
             <h3 className="text-2xl font-serif font-bold text-[#2D4F1E]">
-              {activeTab === 'sandbox' ? 'Sandbox Mode' : 
-               activeTab === 'story' ? 'Misi Penjaga: Algoritma Alam' :
-               activeTab === 'lab' ? 'Laboratorium Biologi' :
-               activeTab === 'challenges' ? 'Tantangan Harian' :
-               activeTab === 'learn' ? 'Ensiklopedia' : 
-               activeTab === 'quiz' ? 'Ujian Kompetensi' : 'Pengaturan'}
+              {profile?.role === 'guru' ? (
+                activeTab === 'teacher' ? 'Dashboard Evaluasi Guru' :
+                activeTab === 'learn' ? 'Manajemen Materi' :
+                activeTab === 'quiz' ? 'Bank Soal & Kuis' : 'Pengaturan Akun'
+              ) : (
+                activeTab === 'sandbox' ? 'Sandbox Mode' : 
+                activeTab === 'story' ? 'Misi Penjaga: Algoritma Alam' :
+                activeTab === 'lab' ? 'Laboratorium Biologi' :
+                activeTab === 'challenges' ? 'Tantangan Harian' :
+                activeTab === 'learn' ? 'Ensiklopedia' : 
+                activeTab === 'quiz' ? 'Ujian Kompetensi' : 'Pengaturan'
+              )}
             </h3>
           </div>
           <div className="hidden sm:flex bg-[#F1F6EE] px-4 py-2 rounded-full border border-[#E0E7D9] items-center gap-3">
@@ -300,17 +373,27 @@ export default function App() {
               </div>
             )}
             {activeTab === 'quiz' && (
-              <DailyExam 
-                profile={profile}
-                onXpGain={handleXpGain} 
-                onBack={() => setActiveTab('sandbox')}
-                onUpdateProgress={(id, prog) => { if (user) updateChallengeProgress(user.uid, id, prog).then(updated => updated && setProfile(updated)); }}
-              />
+              profile?.role === 'guru' ? (
+                <TeacherQuizBank profile={profile} />
+              ) : (
+                <DailyExam 
+                  profile={profile}
+                  onXpGain={handleXpGain} 
+                  onBack={() => setActiveTab('sandbox')}
+                  onUpdateProgress={(id, prog) => { if (user) updateChallengeProgress(user.uid, id, prog).then(updated => updated && setProfile(updated)); }}
+                />
+              )
+            )}
+            {activeTab === 'teacher' && (
+              <div key="teacher">
+                <TeacherDashboard onBack={() => setActiveTab('sandbox')} />
+              </div>
             )}
             {activeTab === 'settings' && (
               <SettingsModule 
                 profile={profile} 
                 onProfileUpdate={(updated) => setProfile(updated)} 
+                onDeleteAccount={() => signOut()}
               />
             )}
           </AnimatePresence>
