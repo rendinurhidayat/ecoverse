@@ -21,6 +21,8 @@ import {
 import { UserProfile } from '../types';
 import { addQuiz, updateUserProfile, deleteUserProfile } from '../services/dbService';
 import { motion, AnimatePresence } from 'framer-motion';
+import { auth } from '../lib/firebase';
+import { deleteUser } from 'firebase/auth';
 
 export default function SettingsModule({ profile, onProfileUpdate, onDeleteAccount }: { profile: UserProfile | null, onProfileUpdate?: (updated: UserProfile) => void, onDeleteAccount?: () => void }) {
   // Profile Editor State
@@ -32,6 +34,7 @@ export default function SettingsModule({ profile, onProfileUpdate, onDeleteAccou
     bio: profile?.bio || '',
     role: profile?.role || 'siswa'
   });
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [updateLoading, setUpdateLoading] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
@@ -423,15 +426,33 @@ export default function SettingsModule({ profile, onProfileUpdate, onDeleteAccou
                       Batal
                     </button>
                     <button 
+                      disabled={deleteLoading}
                       onClick={async () => {
-                         if (profile) {
-                            const success = await deleteUserProfile(profile.uid);
-                            if (success && onDeleteAccount) onDeleteAccount();
+                         if (profile && auth.currentUser) {
+                            setDeleteLoading(true);
+                            try {
+                               // 1. Delete Firestore Data
+                               const success = await deleteUserProfile(profile.uid);
+                               
+                               // 2. Delete Auth Account
+                               if (success && auth.currentUser) {
+                                  await deleteUser(auth.currentUser);
+                               }
+                               
+                               if (success && onDeleteAccount) {
+                                  onDeleteAccount();
+                               }
+                            } catch (err) {
+                               console.error("Gagal menghapus akun:", err);
+                               alert("Terjadi kesalahan saat menghapus akun. Silakan coba login kembali dan hapus ulang.");
+                            } finally {
+                               setDeleteLoading(false);
+                            }
                          }
                       }}
-                      className="py-3 bg-red-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-red-200"
+                      className="py-3 bg-red-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-red-200 disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                      Ya, Hapus
+                      {deleteLoading ? <RefreshCcw size={14} className="animate-spin" /> : "Ya, Hapus"}
                     </button>
                  </div>
               </motion.div>

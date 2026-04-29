@@ -22,7 +22,8 @@ import {
   CheckCircle2,
   XCircle,
   HelpCircle,
-  Info
+  Info,
+  RefreshCcw
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -51,6 +52,7 @@ export default function TeacherDashboard({ onBack }: { onBack: () => void }) {
   const [sortBy, setSortBy] = useState('XP Tertinggi');
   const [selectedStudent, setSelectedStudent] = useState<UserProfile | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -71,11 +73,16 @@ export default function TeacherDashboard({ onBack }: { onBack: () => void }) {
   }, []);
 
   const handleDeleteStudent = async (uid: string) => {
-    const success = await deleteUserProfile(uid);
-    if (success) {
-      setStudents(prev => prev.filter(s => s.uid !== uid));
-      setSelectedStudent(null);
-      setShowDeleteConfirm(null);
+    setDeleteLoading(true);
+    try {
+      const success = await deleteUserProfile(uid);
+      if (success) {
+        setStudents(prev => prev.filter(s => s.uid !== uid));
+        setSelectedStudent(null);
+        setShowDeleteConfirm(null);
+      }
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -716,10 +723,11 @@ export default function TeacherDashboard({ onBack }: { onBack: () => void }) {
                       Batal
                     </button>
                     <button 
+                      disabled={deleteLoading}
                       onClick={() => handleDeleteStudent(showDeleteConfirm)}
-                      className="py-3 bg-red-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-red-200"
+                      className="py-3 bg-red-600 text-white rounded-xl font-bold text-xs shadow-lg shadow-red-200 disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                      Ya, Hapus
+                      {deleteLoading ? <RefreshCcw size={14} className="animate-spin" /> : "Ya, Hapus"}
                     </button>
                  </div>
               </motion.div>

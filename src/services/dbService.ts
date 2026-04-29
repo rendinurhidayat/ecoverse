@@ -391,24 +391,53 @@ export const getAllLabStates = async (): Promise<LabState[]> => {
 export const deleteUserProfile = async (uid: string) => {
   try {
     // 1. Delete associated labs
-    const labsQ = query(collection(db, 'labs'), where('uid', '==', uid));
-    const labsSnap = await getDocs(labsQ);
-    const labDeletes = labsSnap.docs.map(doc => deleteDoc(doc.ref));
+    try {
+      const labsQ = query(collection(db, 'labs'), where('uid', '==', uid));
+      const labsSnap = await getDocs(labsQ);
+      await Promise.all(labsSnap.docs.map(d => deleteDoc(d.ref)));
+    } catch (err) {
+      console.warn('Failed to delete labs for user:', uid, err);
+    }
 
     // 2. Delete associated quizResults
-    const quizQ = query(collection(db, 'quizResults'), where('uid', '==', uid));
-    const quizSnap = await getDocs(quizQ);
-    const quizDeletes = quizSnap.docs.map(doc => deleteDoc(doc.ref));
+    try {
+      const quizQ = query(collection(db, 'quizResults'), where('uid', '==', uid));
+      const quizSnap = await getDocs(quizQ);
+      await Promise.all(quizSnap.docs.map(d => deleteDoc(d.ref)));
+    } catch (err) {
+      console.warn('Failed to delete quiz results for user:', uid, err);
+    }
 
     // 3. Delete associated storyProgress
-    const storyQ = query(collection(db, 'storyProgress'), where('uid', '==', uid));
-    const storySnap = await getDocs(storyQ);
-    const storyDeletes = storySnap.docs.map(doc => deleteDoc(doc.ref));
+    try {
+      const storyQ = query(collection(db, 'storyProgress'), where('uid', '==', uid));
+      const storySnap = await getDocs(storyQ);
+      await Promise.all(storySnap.docs.map(d => deleteDoc(d.ref)));
+    } catch (err) {
+      console.warn('Failed to delete story progress for user:', uid, err);
+    }
 
-    // 4. Delete the user profile doc
-    const userDelete = deleteDoc(doc(db, 'users', uid));
+    // 4. Delete associated quizzes created by this user
+    try {
+      const quizzesQ = query(collection(db, 'quizzes'), where('createdBy', '==', uid));
+      const quizzesSnap = await getDocs(quizzesQ);
+      await Promise.all(quizzesSnap.docs.map(d => deleteDoc(d.ref)));
+    } catch (err) {
+      console.warn('Failed to delete quizzes for user:', uid, err);
+    }
 
-    await Promise.all([...labDeletes, ...quizDeletes, ...storyDeletes, userDelete]);
+    // 5. Delete associated materials created by this user
+    try {
+      const materialsQ = query(collection(db, 'materials'), where('createdBy', '==', uid));
+      const materialsSnap = await getDocs(materialsQ);
+      await Promise.all(materialsSnap.docs.map(d => deleteDoc(d.ref)));
+    } catch (err) {
+      console.warn('Failed to delete materials for user:', uid, err);
+    }
+
+    // 6. Delete the user profile doc
+    await deleteDoc(doc(db, 'users', uid));
+
     return true;
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `users/${uid}`);

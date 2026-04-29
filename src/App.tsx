@@ -153,7 +153,7 @@ export default function App() {
 
         // Set up real-time sync for profile
         unsubProfile = subscribeToUserProfile(firebaseUser.uid, (updatedProfile) => {
-          if (updatedProfile) setProfile(updatedProfile);
+          setProfile(updatedProfile);
         });
 
         setUser(firebaseUser);
