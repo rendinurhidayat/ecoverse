@@ -26,6 +26,10 @@ export interface UserProfile {
   unlockedHabitats: HabitatType[];
   badges: string[];
   challengeProgress?: { [challengeId: string]: number };
+  school?: string;
+  bio?: string;
+  streak?: number;
+  lastLogin?: any;
 }
 
 export interface EcosystemSave {
@@ -70,7 +74,7 @@ export interface LabState {
   uid: string;
   labId: string;
   data: any;
-  updatedAt: number;
+  updatedAt?: any;
 }
 
 export type WeatherType = 'normal' | 'hujan' | 'terik' | 'angin_kencang';

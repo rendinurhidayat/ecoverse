@@ -9,7 +9,8 @@ import {
   addDoc, 
   updateDoc,
   deleteDoc,
-  serverTimestamp 
+  serverTimestamp,
+  onSnapshot
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { UserProfile, EcosystemSave, QuizQuestion, LabState, Flashcard, StoryProgress, QuizResult } from '../types';
@@ -49,24 +50,112 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
+export const subscribeToUserProfile = (uid: string, callback: (profile: UserProfile | null) => void) => {
+  const userRef = doc(db, 'users', uid);
+  return onSnapshot(userRef, (snapshot) => {
+    if (snapshot.exists()) {
+      callback(snapshot.data() as UserProfile);
+    } else {
+      callback(null);
+    }
+  }, (error) => {
+    handleFirestoreError(error, OperationType.GET, `users/${uid}`);
+  });
+};
+
+export const subscribeToSaves = (uid: string, callback: (saves: EcosystemSave[]) => void) => {
+  const q = query(collection(db, 'saves'), where('uid', '==', uid));
+  return onSnapshot(q, (snapshot) => {
+    const saves = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as EcosystemSave));
+    callback(saves);
+  }, (error) => {
+    handleFirestoreError(error, OperationType.LIST, 'saves');
+  });
+};
+
+export const subscribeToQuizzes = (callback: (quizzes: QuizQuestion[]) => void) => {
+  return onSnapshot(collection(db, 'quizzes'), (snapshot) => {
+    const quizzes = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as QuizQuestion));
+    callback(quizzes);
+  }, (error) => {
+    handleFirestoreError(error, OperationType.LIST, 'quizzes');
+  });
+};
+
+export const subscribeToLabState = (uid: string, labId: string, callback: (state: LabState | null) => void) => {
+  const q = query(collection(db, 'labs'), where('uid', '==', uid), where('labId', '==', labId));
+  return onSnapshot(q, (snapshot) => {
+    if (!snapshot.empty) {
+      callback({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as LabState);
+    } else {
+      callback(null);
+    }
+  }, (error) => {
+    handleFirestoreError(error, OperationType.LIST, 'labs');
+  });
+};
+
+export const subscribeToMaterials = (callback: (materials: Flashcard[]) => void) => {
+  return onSnapshot(collection(db, 'materials'), (snapshot) => {
+    const materials = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as unknown as Flashcard));
+    callback(materials);
+  }, (error) => {
+    handleFirestoreError(error, OperationType.LIST, 'materials');
+  });
+};
+
+export const subscribeToLeaderboard = (date: string, callback: (results: QuizResult[]) => void) => {
+  const q = query(collection(db, 'quizResults'), where('date', '==', date));
+  return onSnapshot(q, (snapshot) => {
+    const results = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as QuizResult));
+    callback(results.sort((a, b) => b.score - a.score).slice(0, 10));
+  }, (error) => {
+    handleFirestoreError(error, OperationType.LIST, 'quizResults');
+  });
+};
+
+export const subscribeToStoryProgress = (uid: string, callback: (progress: StoryProgress | null) => void) => {
+  const q = query(collection(db, 'storyProgress'), where('uid', '==', uid));
+  return onSnapshot(q, (snapshot) => {
+    if (!snapshot.empty) {
+      callback({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as StoryProgress);
+    } else {
+      callback(null);
+    }
+  }, (error) => {
+    handleFirestoreError(error, OperationType.LIST, 'storyProgress');
+  });
+};
+
 export const updateUserXP = async (uid: string, xpToAdd: number) => {
   try {
     const profile = await getUserProfile(uid);
     if (!profile) return;
 
-    const newXp = profile.xp + xpToAdd;
-    // Simple level up formula: Level = Math.floor(totalXp / 500) + 1
-    const newLevel = Math.floor(newXp / 500) + 1;
+    const newXp = (profile.xp || 0) + xpToAdd;
+    // Standard level up formula: Level = Math.floor(totalXp / 1000) + 1
+    const newLevel = Math.floor(newXp / 1000) + 1;
     
     const updatedProfile = {
-      ...profile,
       xp: newXp,
       level: newLevel,
       updatedAt: serverTimestamp()
     };
 
     await updateDoc(doc(db, 'users', uid), updatedProfile);
-    return updatedProfile;
+    return { ...profile, ...updatedProfile };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `users/${uid}`);
+  }
+};
+
+export const updateUserProfile = async (uid: string, updates: Partial<UserProfile>) => {
+  try {
+    await updateDoc(doc(db, 'users', uid), {
+      ...updates,
+      updatedAt: serverTimestamp()
+    });
+    return await getUserProfile(uid);
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `users/${uid}`);
   }
@@ -83,14 +172,11 @@ export const updateChallengeProgress = async (uid: string, challengeId: string, 
       [challengeId]: progress
     };
 
-    const updatedProfile = {
-      ...profile,
+    await updateDoc(doc(db, 'users', uid), {
       challengeProgress: updatedProgress,
       updatedAt: serverTimestamp()
-    };
-
-    await updateDoc(doc(db, 'users', uid), updatedProfile);
-    return updatedProfile;
+    });
+    return { ...profile, challengeProgress: updatedProgress };
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `users/${uid}`);
   }
@@ -98,10 +184,20 @@ export const updateChallengeProgress = async (uid: string, challengeId: string, 
 
 export const saveUserProfile = async (profile: UserProfile) => {
   try {
-    await setDoc(doc(db, 'users', profile.uid), {
-      ...profile,
-      updatedAt: serverTimestamp()
-    });
+    const userRef = doc(db, 'users', profile.uid);
+    const snap = await getDoc(userRef);
+    if (snap.exists()) {
+      await updateDoc(userRef, {
+        ...profile,
+        updatedAt: serverTimestamp()
+      });
+    } else {
+      await setDoc(userRef, {
+        ...profile,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `users/${profile.uid}`);
   }

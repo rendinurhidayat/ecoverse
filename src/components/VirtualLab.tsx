@@ -4,10 +4,11 @@ import {
   Sun, CloudRain, Droplets, Leaf, Activity, RefreshCw, 
   Brain, Mountain, Wind, Zap, ChevronRight, CheckCircle, XCircle
 } from 'lucide-react';
+import { subscribeToLabState, saveLabState } from '../services/dbService';
 
 type LabType = 'water' | 'carbon' | 'nitrogen' | 'phosphorus' | 'sulfur' | 'games';
 
-export default function VirtualLab({ onXpGain, onUpdateProgress, profile }: { onXpGain?: (xp: number) => void, onUpdateProgress?: (id: string, prog: number) => void, profile?: any }) {
+export default function VirtualLab({ onXpGain, onUpdateProgress, profile, uid }: { onXpGain?: (xp: number) => void, onUpdateProgress?: (id: string, prog: number) => void, profile?: any, uid?: string }) {
   const [activeLab, setActiveLab] = useState<LabType>('water');
   const [simulatedLabs, setSimulatedLabs] = useState<Set<string>>(new Set());
 
@@ -51,11 +52,11 @@ export default function VirtualLab({ onXpGain, onUpdateProgress, profile }: { on
            animate={{ opacity: 1, scale: 1, y: 0 }}
            transition={{ duration: 0.4, ease: "easeOut" }}
         >
-          {activeLab === 'water' && <WaterCycleLab />}
-          {activeLab === 'carbon' && <CarbonCycleLab onUpdateProgress={onUpdateProgress} />}
-          {activeLab === 'nitrogen' && <NitrogenCycleLab />}
-          {activeLab === 'phosphorus' && <PhosphorusCycleLab />}
-          {activeLab === 'sulfur' && <SulfurCycleLab />}
+          {activeLab === 'water' && <WaterCycleLab uid={uid} />}
+          {activeLab === 'carbon' && <CarbonCycleLab uid={uid} onUpdateProgress={onUpdateProgress} />}
+          {activeLab === 'nitrogen' && <NitrogenCycleLab uid={uid} />}
+          {activeLab === 'phosphorus' && <PhosphorusCycleLab uid={uid} />}
+          {activeLab === 'sulfur' && <SulfurCycleLab uid={uid} />}
           {activeLab === 'games' && <GameCenter onXpGain={onXpGain} />}
         </motion.div>
       </div>
@@ -98,11 +99,40 @@ function LabControl({ label, value, onChange, icon, min = 0, max = 100, unit = '
 
 // --- CYCLE LABS ---
 
-function WaterCycleLab() {
+function WaterCycleLab({ uid }: { uid?: string }) {
   const [heat, setHeat] = useState(50);
   const [vegetation, setVegetation] = useState(50);
   const [stage, setStage] = useState(0); 
+  const [dbStateId, setDbStateId] = useState<string | null>(null);
   
+  useEffect(() => {
+    if (!uid) return;
+    const unsub = subscribeToLabState(uid, 'water', (state) => {
+      if (state) {
+        setHeat(state.data.heat ?? 50);
+        setVegetation(state.data.vegetation ?? 50);
+        setDbStateId(state.id || null);
+      }
+    });
+    return unsub;
+  }, [uid]);
+
+  const handleUpdate = async (newHeat?: number, newVeg?: number) => {
+    const h = newHeat !== undefined ? newHeat : heat;
+    const v = newVeg !== undefined ? newVeg : vegetation;
+    setHeat(h);
+    setVegetation(v);
+    
+    if (uid) {
+      await saveLabState({
+        id: dbStateId || undefined,
+        uid,
+        labId: 'water',
+        data: { heat: h, vegetation: v }
+      });
+    }
+  };
+
   useEffect(() => {
     const timer = setInterval(() => setStage(s => (s + 1) % 4), 6000);
     return () => clearInterval(timer);
@@ -146,8 +176,8 @@ function WaterCycleLab() {
       <div className="space-y-4">
          <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100 space-y-6">
             <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Parameter Lingkungan</p>
-            <LabControl label="Radiasi Surya" value={heat} onChange={setHeat} icon={<Sun size={14}/>} />
-            <LabControl label="Tutupan Hijau" value={vegetation} onChange={setVegetation} icon={<Leaf size={14}/>} />
+            <LabControl label="Radiasi Surya" value={heat} onChange={(val: number) => handleUpdate(val, undefined)} icon={<Sun size={14}/>} />
+            <LabControl label="Tutupan Hijau" value={vegetation} onChange={(val: number) => handleUpdate(undefined, val)} icon={<Leaf size={14}/>} />
          </div>
          <div className="p-8 bg-[#4A7C44] rounded-[40px] text-white">
             <h4 className="font-serif font-bold text-lg mb-2">Insight Air</h4>
@@ -158,9 +188,38 @@ function WaterCycleLab() {
   );
 }
 
-function CarbonCycleLab({ onUpdateProgress }: { onUpdateProgress?: (id: string, prog: number) => void }) {
+function CarbonCycleLab({ uid, onUpdateProgress }: { uid?: string, onUpdateProgress?: (id: string, prog: number) => void }) {
   const [emissions, setEmissions] = useState(30);
   const [forests, setForests] = useState(60);
+  const [dbStateId, setDbStateId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!uid) return;
+    const unsub = subscribeToLabState(uid, 'carbon', (state) => {
+      if (state) {
+        setEmissions(state.data.emissions ?? 30);
+        setForests(state.data.forests ?? 60);
+        setDbStateId(state.id || null);
+      }
+    });
+    return unsub;
+  }, [uid]);
+
+  const handleUpdate = async (newEmissions?: number, newForests?: number) => {
+    const e = newEmissions !== undefined ? newEmissions : emissions;
+    const f = newForests !== undefined ? newForests : forests;
+    setEmissions(e);
+    setForests(f);
+    
+    if (uid) {
+      await saveLabState({
+        id: dbStateId || undefined,
+        uid,
+        labId: 'carbon',
+        data: { emissions: e, forests: f }
+      });
+    }
+  };
 
   useEffect(() => {
     if (onUpdateProgress && forests >= 100) {
@@ -201,16 +260,45 @@ function CarbonCycleLab({ onUpdateProgress }: { onUpdateProgress?: (id: string, 
          </div>
       </div>
       <div className="space-y-4">
-         <LabControl label="Aktivitas Industri" value={emissions} onChange={setEmissions} icon={<Activity size={14}/>} />
-         <LabControl label="Restorasi Hutan" value={forests} onChange={setForests} icon={<Leaf size={14}/>} />
+         <LabControl label="Aktivitas Industri" value={emissions} onChange={(val: number) => handleUpdate(val, undefined)} icon={<Activity size={14}/>} />
+         <LabControl label="Restorasi Hutan" value={forests} onChange={(val: number) => handleUpdate(undefined, val)} icon={<Leaf size={14}/>} />
       </div>
     </div>
   );
 }
 
-function NitrogenCycleLab() {
+function NitrogenCycleLab({ uid }: { uid?: string }) {
   const [fertilizer, setFertilizer] = useState(20);
   const [bacteria, setBacteria] = useState(50);
+  const [dbStateId, setDbStateId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!uid) return;
+    const unsub = subscribeToLabState(uid, 'nitrogen', (state) => {
+      if (state) {
+        setFertilizer(state.data.fertilizer ?? 20);
+        setBacteria(state.data.bacteria ?? 50);
+        setDbStateId(state.id || null);
+      }
+    });
+    return unsub;
+  }, [uid]);
+
+  const handleUpdate = async (newFert?: number, newBact?: number) => {
+    const f = newFert !== undefined ? newFert : fertilizer;
+    const b = newBact !== undefined ? newBact : bacteria;
+    setFertilizer(f);
+    setBacteria(b);
+    
+    if (uid) {
+      await saveLabState({
+        id: dbStateId || undefined,
+        uid,
+        labId: 'nitrogen',
+        data: { fertilizer: f, bacteria: b }
+      });
+    }
+  };
   
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -242,8 +330,8 @@ function NitrogenCycleLab() {
       <div className="space-y-4">
          <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100 space-y-6">
             <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Aktivitas Manusia & Alam</p>
-            <LabControl label="Penggunaan Pupuk" value={fertilizer} onChange={setFertilizer} icon={<Zap size={14}/>} />
-            <LabControl label="Populasi Bakteri" value={bacteria} onChange={setBacteria} icon={<Activity size={14}/>} />
+            <LabControl label="Penggunaan Pupuk" value={fertilizer} onChange={(val: number) => handleUpdate(val, undefined)} icon={<Zap size={14}/>} />
+            <LabControl label="Populasi Bakteri" value={bacteria} onChange={(val: number) => handleUpdate(undefined, val)} icon={<Activity size={14}/>} />
          </div>
          <div className="p-8 bg-[#4A7C44] rounded-[40px] text-white">
             <h4 className="font-serif font-bold text-lg mb-2">Eutrofikasi</h4>
@@ -255,9 +343,38 @@ function NitrogenCycleLab() {
 }
 
 
-function PhosphorusCycleLab() {
+function PhosphorusCycleLab({ uid }: { uid?: string }) {
   const [weathering, setWeathering] = useState(30);
   const [mining, setMining] = useState(10);
+  const [dbStateId, setDbStateId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!uid) return;
+    const unsub = subscribeToLabState(uid, 'phosphorus', (state) => {
+      if (state) {
+        setWeathering(state.data.weathering ?? 30);
+        setMining(state.data.mining ?? 10);
+        setDbStateId(state.id || null);
+      }
+    });
+    return unsub;
+  }, [uid]);
+
+  const handleUpdate = async (newWeathering?: number, newMining?: number) => {
+    const w = newWeathering !== undefined ? newWeathering : weathering;
+    const m = newMining !== undefined ? newMining : mining;
+    setWeathering(w);
+    setMining(m);
+    
+    if (uid) {
+      await saveLabState({
+        id: dbStateId || undefined,
+        uid,
+        labId: 'phosphorus',
+        data: { weathering: w, mining: m }
+      });
+    }
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -282,8 +399,8 @@ function PhosphorusCycleLab() {
          </div>
       </div>
       <div className="space-y-4">
-         <LabControl label="Pelapukan Batuan" value={weathering} onChange={setWeathering} icon={<Mountain size={14}/>} />
-         <LabControl label="Eksploitasi Tambang" value={mining} onChange={setMining} icon={<Activity size={14}/>} />
+         <LabControl label="Pelapukan Batuan" value={weathering} onChange={(val: number) => handleUpdate(val, undefined)} icon={<Mountain size={14}/>} />
+         <LabControl label="Eksploitasi Tambang" value={mining} onChange={(val: number) => handleUpdate(undefined, val)} icon={<Activity size={14}/>} />
          <div className="p-8 bg-[#6B4F2D] rounded-[40px] text-white">
             <h4 className="font-serif font-bold text-lg mb-2">Deposit Geon</h4>
             <p className="text-xs opacity-80 leading-relaxed font-medium">Berbeda dengan nitrogen, fosfor tidak melalui fase gas di atmosfer, menjadikannya elemen yang sangat lambat bersirkulasi.</p>
@@ -293,9 +410,38 @@ function PhosphorusCycleLab() {
   );
 }
 
-function SulfurCycleLab() {
+function SulfurCycleLab({ uid }: { uid?: string }) {
   const [volcano, setVolcano] = useState(20);
   const [industry, setIndustry] = useState(40);
+  const [dbStateId, setDbStateId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!uid) return;
+    const unsub = subscribeToLabState(uid, 'sulfur', (state) => {
+      if (state) {
+        setVolcano(state.data.volcano ?? 20);
+        setIndustry(state.data.industry ?? 40);
+        setDbStateId(state.id || null);
+      }
+    });
+    return unsub;
+  }, [uid]);
+
+  const handleUpdate = async (newVolcano?: number, newInd?: number) => {
+    const v = newVolcano !== undefined ? newVolcano : volcano;
+    const i = newInd !== undefined ? newInd : industry;
+    setVolcano(v);
+    setIndustry(i);
+    
+    if (uid) {
+      await saveLabState({
+        id: dbStateId || undefined,
+        uid,
+        labId: 'sulfur',
+        data: { volcano: v, industry: i }
+      });
+    }
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -314,7 +460,7 @@ function SulfurCycleLab() {
             </motion.span>
             <h3 className="text-5xl font-serif font-black text-[#8B7D2F] italic tracking-tight">Siklus Sulfur</h3>
             <p className="text-gray-500 max-w-xl mx-auto mt-6 font-medium leading-relaxed px-8 text-lg">
-               Sulphur memasuki atmosfer melalui emisi vulkanik dan aktivitas antropogenik.
+               Sulphur memasuki atmosfer melalui emisi vulkanik and aktivitas antropogenik.
             </p>
             <div className="mt-12 flex gap-12">
                <div className="text-center">
@@ -331,8 +477,8 @@ function SulfurCycleLab() {
          </div>
       </div>
       <div className="space-y-4">
-         <LabControl label="Aktivitas Vulkanik" value={volcano} onChange={setVolcano} icon={<Zap size={14}/>} />
-         <LabControl label="Emisi Industri" value={industry} onChange={setIndustry} icon={<Activity size={14}/>} />
+         <LabControl label="Aktivitas Vulkanik" value={volcano} onChange={(val: number) => handleUpdate(val, undefined)} icon={<Zap size={14}/>} />
+         <LabControl label="Emisi Industri" value={industry} onChange={(val: number) => handleUpdate(undefined, val)} icon={<Activity size={14}/>} />
          <div className="p-8 bg-[#8B7D2F] rounded-[40px] text-white">
             <h4 className="font-serif font-bold text-lg mb-2">Protein & Sulfur</h4>
             <p className="text-xs opacity-80 leading-relaxed font-medium">Sulfur adalah komponen esensial dari asam amino seperti sistein dan metionin yang mendasari struktur protein mahkluk hidup.</p>

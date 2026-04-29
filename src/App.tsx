@@ -39,7 +39,17 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { auth, signOut, signInWithGoogle } from './lib/firebase';
 import { HABITAT_CONFIG, ORGANISM_DATA, FLASHCARDS, QUIZ_QUESTIONS, SCENARIOS } from './constants';
-import { getUserProfile, saveUserProfile, getSaves, saveEcosystem, getQuizzes, addQuiz } from './services/dbService';
+import { 
+  getUserProfile, 
+  saveUserProfile, 
+  getQuizzes, 
+  addQuiz, 
+  updateUserXP, 
+  updateChallengeProgress, 
+  updateUserProfile,
+  subscribeToUserProfile,
+  subscribeToSaves
+} from './services/dbService';
 import { Organism, OrganismType, EcosystemStats, HabitatType, UserProfile, EcosystemSave, QuizQuestion, Flashcard } from './types';
 import Login from './components/Login';
 import { useEcosystemEngine } from './hooks/useEcosystemEngine';
@@ -50,7 +60,6 @@ import LearningModule from './components/LearningModule';
 import SettingsModule from './components/SettingsModule';
 import ChallengeModule from './components/ChallengeModule';
 import DailyExam from './components/DailyExam';
-import { updateUserXP, updateChallengeProgress } from './services/dbService';
 
 function NavButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
   return (
@@ -89,10 +98,21 @@ export default function App() {
   };
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+    let unsubProfile: (() => void) | null = null;
+    let unsubSaves: (() => void) | null = null;
+
+    const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
+      
+      // Cleanup previous subscriptions
+      if (unsubProfile) unsubProfile();
+      if (unsubSaves) unsubSaves();
+
       if (firebaseUser) {
+        // Initial check/setup
         let existingProfile = await getUserProfile(firebaseUser.uid);
+        const today = new Date().toISOString().split('T')[0];
+
         if (!existingProfile) {
           existingProfile = {
             uid: firebaseUser.uid,
@@ -102,29 +122,55 @@ export default function App() {
             level: 1,
             completedQuizzes: 0,
             unlockedHabitats: ['forest'],
-            badges: []
+            badges: [],
+            streak: 1,
+            lastLogin: today
           };
           await saveUserProfile(existingProfile);
+        } else {
+          // Streak logic
+          const lastLogin = existingProfile.lastLogin;
+          if (lastLogin !== today) {
+            const lastDate = new Date(lastLogin);
+            const currentDate = new Date(today);
+            const diffTime = Math.abs(currentDate.getTime() - lastDate.getTime());
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 1) {
+              existingProfile.streak = (existingProfile.streak || 0) + 1;
+            } else if (diffDays > 1) {
+              existingProfile.streak = 1;
+            }
+            existingProfile.lastLogin = today;
+            await updateUserProfile(firebaseUser.uid, { streak: existingProfile.streak, lastLogin: today });
+          }
         }
-        setProfile(existingProfile);
+
+        // Set up real-time sync for profile
+        unsubProfile = subscribeToUserProfile(firebaseUser.uid, (updatedProfile) => {
+          if (updatedProfile) setProfile(updatedProfile);
+        });
+
+        // Set up real-time sync for saves
+        unsubSaves = subscribeToSaves(firebaseUser.uid, (saves) => {
+          setViewHistory(saves);
+        });
+
         setUser(firebaseUser);
-        const saves = await getSaves(firebaseUser.uid);
-        setViewHistory(saves);
       } else {
         setUser(null);
         setProfile(null);
+        setViewHistory([]);
       }
       setLoading(false);
     });
-    return unsub;
-  }, []);
 
-  const refreshSaves = async () => {
-    if (user) {
-      const saves = await getSaves(user.uid);
-      setViewHistory(saves);
-    }
-  };
+    return () => {
+      unsubAuth();
+      if (unsubProfile) unsubProfile();
+      if (unsubSaves) unsubSaves();
+    };
+  }, []);
 
   const handleStartScenario = (scenario: any) => {
     setActiveTab('sandbox');
@@ -219,7 +265,7 @@ export default function App() {
                 <SandboxMode 
                   engine={ecoEngine} 
                   uid={user?.uid} 
-                  onSaveSuccess={refreshSaves} 
+                  onSaveSuccess={() => {}} 
                   onXpGain={handleXpGain}
                   onUpdateProgress={(id, prog) => { if (user) updateChallengeProgress(user.uid, id, prog).then(updated => updated && setProfile(updated)); }}
                 />
@@ -241,6 +287,7 @@ export default function App() {
                   onXpGain={handleXpGain} 
                   onUpdateProgress={(id, prog) => { if (user) updateChallengeProgress(user.uid, id, prog).then(updated => updated && setProfile(updated)); }}
                   profile={profile}
+                  uid={user?.uid}
                 />
               </div>
             )}
@@ -260,7 +307,12 @@ export default function App() {
                 onUpdateProgress={(id, prog) => { if (user) updateChallengeProgress(user.uid, id, prog).then(updated => updated && setProfile(updated)); }}
               />
             )}
-            {activeTab === 'settings' && <SettingsModule profile={profile} />}
+            {activeTab === 'settings' && (
+              <SettingsModule 
+                profile={profile} 
+                onProfileUpdate={(updated) => setProfile(updated)} 
+              />
+            )}
           </AnimatePresence>
         </section>
       </main>

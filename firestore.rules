@@ -16,7 +16,7 @@ service cloud.firestore {
     }
 
     function isOwner(uid) {
-      return isVerified() && request.auth.uid == uid;
+      return isSignedIn() && request.auth.uid == uid;
     }
 
     function isValidId(id) {
@@ -36,20 +36,26 @@ service cloud.firestore {
     // 1. Users Collection
     match /users/{uid} {
       function isValidUser(data) {
-        return data.uid == request.auth.uid 
-          && data.email is string && data.email.size() <= 200
-          && (data.xp is number || !data.keys().has('xp'))
-          && (data.level is number || !data.keys().has('level'))
-          && (data.displayName is string || !data.keys().has('displayName'))
-          && (data.completedQuizzes is number || !data.keys().has('completedQuizzes'))
-          && (data.challengeProgress is map || !data.keys().has('challengeProgress'));
+        return data.uid == uid 
+          && (data.email is string || !('email' in data))
+          && (data.xp is number || !('xp' in data))
+          && (data.level is number || !('level' in data))
+          && (data.displayName is string || !('displayName' in data))
+          && (data.completedQuizzes is number || !('completedQuizzes' in data))
+          && (data.challengeProgress is map || !('challengeProgress' in data))
+          && (data.school is string || !('school' in data))
+          && (data.bio is string || !('bio' in data))
+          && (data.streak is number || !('streak' in data))
+          && (data.lastLogin is string || data.lastLogin is timestamp || !('lastLogin' in data))
+          && (data.unlockedHabitats is list || !('unlockedHabitats' in data))
+          && (data.badges is list || !('badges' in data))
+          && (data.createdAt is timestamp || !('createdAt' in data))
+          && (data.updatedAt is timestamp || !('updatedAt' in data));
       }
 
       allow get: if isOwner(uid);
       allow create: if isOwner(uid) && isValidUser(incoming());
-      allow update: if isOwner(uid) 
-        && isValidUser(incoming())
-        && incoming().diff(existing()).affectedKeys().hasOnly(['xp', 'level', 'displayName', 'completedQuizzes', 'unlockedHabitats', 'badges', 'challengeProgress', 'updatedAt']);
+      allow update: if isOwner(uid) && isValidUser(incoming());
     }
 
     // 2. Ecosystem Saves

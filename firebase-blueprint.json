@@ -10,7 +10,13 @@
         "displayName": { "type": "string" },
         "xp": { "type": "number" },
         "level": { "type": "number" },
-        "completedQuizzes": { "type": "number" }
+        "completedQuizzes": { "type": "number" },
+        "school": { "type": "string" },
+        "bio": { "type": "string" },
+        "streak": { "type": "number" },
+        "lastLogin": { "type": "string" },
+        "unlockedHabitats": { "type": "array" },
+        "badges": { "type": "array" }
       },
       "required": ["uid", "email"]
     },

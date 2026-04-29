@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, CheckCircle2, RefreshCcw, HelpCircle } from 'lucide-react';
-import { getQuizzes, addQuiz } from '../services/dbService';
+import { subscribeToQuizzes, addQuiz } from '../services/dbService';
 import { QuizQuestion, UserProfile } from '../types';
 import { QUIZ_QUESTIONS } from '../constants';
 
@@ -14,30 +14,26 @@ export default function QuizModule({ profile, onXpGain, onBack, onUpdateProgress
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (finished && score === questions.length && onUpdateProgress) {
+    if (finished && score === questions.length && onUpdateProgress && questions.length > 0) {
       onUpdateProgress('2', 1);
     }
   }, [finished, score, questions.length, onUpdateProgress]);
 
   useEffect(() => {
-    loadQuizzes();
+    const unsub = subscribeToQuizzes((data) => {
+      if (data.length > 0) {
+        setQuestions(data);
+      }
+      setLoading(false);
+    });
+    return unsub;
   }, []);
-
-  const loadQuizzes = async () => {
-    setLoading(true);
-    const q = await getQuizzes();
-    if (q.length > 0) {
-      setQuestions(q);
-    }
-    setLoading(false);
-  };
 
   const handleSeedQuizzes = async () => {
     setLoading(true);
     for (const q of QUIZ_QUESTIONS) {
        await addQuiz(q);
     }
-    await loadQuizzes();
   };
 
   if (loading) return (

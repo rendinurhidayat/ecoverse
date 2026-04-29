@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, Plus, Trash2, Edit2, X, Check, Search, Download, Sparkles, FileUp, Loader2 } from 'lucide-react';
-import { getMaterials, saveMaterial, deleteMaterial } from '../services/dbService';
+import { subscribeToMaterials, saveMaterial, deleteMaterial } from '../services/dbService';
 import { Flashcard } from '../types';
 import { FLASHCARDS } from '../constants';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -43,26 +43,22 @@ export default function LearningModule({ profile, onUpdateProgress }: { profile:
   };
 
   useEffect(() => {
-    loadMaterials();
+    const unsub = subscribeToMaterials((data) => {
+      setMaterials(data);
+      setLoading(false);
+    });
+    return unsub;
   }, []);
 
   useEffect(() => {
     setSelectedChapter('Semua');
   }, [selectedGrade]);
 
-  const loadMaterials = async () => {
-    setLoading(true);
-    const data = await getMaterials();
-    setMaterials(data);
-    setLoading(false);
-  };
-
   const handleSeedMaterials = async () => {
     setLoading(true);
     for (const f of FLASHCARDS) {
       await saveMaterial(f);
     }
-    await loadMaterials();
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -70,7 +66,6 @@ export default function LearningModule({ profile, onUpdateProgress }: { profile:
     if (!editing?.question || !editing?.answer) return;
     await saveMaterial(editing as Flashcard);
     setEditing(null);
-    loadMaterials();
   };
 
   const handleDelete = async (id: string) => {
@@ -85,7 +80,6 @@ export default function LearningModule({ profile, onUpdateProgress }: { profile:
     if (!deletingId) return;
     await deleteMaterial(deletingId);
     setDeletingId(null);
-    loadMaterials();
   };
 
   const handleAIGenerate = async () => {
@@ -152,7 +146,6 @@ export default function LearningModule({ profile, onUpdateProgress }: { profile:
     }
     setImportText('');
     setImporting(false);
-    loadMaterials();
   };
 
   const filtered = materials.filter(m => {

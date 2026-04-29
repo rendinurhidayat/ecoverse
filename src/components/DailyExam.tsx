@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, CheckCircle, Clock, Send, Brain, Trophy, ChevronRight, ChevronLeft, User, List } from 'lucide-react';
-import { saveQuizResult, getDailyLeaderboard } from '../services/dbService';
+import { saveQuizResult, subscribeToLeaderboard } from '../services/dbService';
 import { auth } from '../lib/firebase';
 import { QuizResult } from '../types';
 
@@ -97,17 +97,18 @@ export default function DailyExam({
   }, [examStarted, examCompleted, timeLeft]);
 
   useEffect(() => {
+    let unsubLeaderboard: (() => void) | null = null;
     if (examCompleted) {
-      fetchLeaderboard();
+      setLoadingLeaderboard(true);
+      unsubLeaderboard = subscribeToLeaderboard(today, (results) => {
+        setLeaderboard(results);
+        setLoadingLeaderboard(false);
+      });
     }
-  }, [examCompleted]);
-
-  const fetchLeaderboard = async () => {
-    setLoadingLeaderboard(true);
-    const results = await getDailyLeaderboard(today);
-    setLeaderboard(results);
-    setLoadingLeaderboard(false);
-  };
+    return () => {
+      if (unsubLeaderboard) unsubLeaderboard();
+    };
+  }, [examCompleted, today]);
 
   const handleStart = () => {
     setExamStarted(true);
@@ -150,7 +151,6 @@ export default function DailyExam({
         createdAt: null
       };
       await saveQuizResult(result);
-      fetchLeaderboard(); // Refresh after saving
     }
   };
 

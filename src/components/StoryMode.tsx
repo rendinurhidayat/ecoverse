@@ -4,7 +4,7 @@ import { ChevronRight, Leaf, Activity, Wind, Droplets, Shovel, Share2, Thermomet
 import { useEcosystemEngine } from '../hooks/useEcosystemEngine';
 import { UNIFIED_STORY } from '../constants';
 import { EcosystemState, MissionPhase, StoryProgress } from '../types';
-import { getStoryProgress, saveStoryProgress } from '../services/dbService';
+import { subscribeToStoryProgress, saveStoryProgress } from '../services/dbService';
 import { EcosystemVisuals } from './EcosystemVisuals';
 
 interface StoryModeProps {
@@ -49,11 +49,12 @@ export default function StoryMode({ engine, uid }: StoryModeProps) {
   const [selectedChoiceIndex, setSelectedChoiceIndex] = useState<number | null>(null);
   const [loadingProgress, setLoadingProgress] = useState(false);
 
-  // Load progress
+  // Load progress with real-time sync
   useEffect(() => {
+    let unsub: (() => void) | null = null;
     if (uid) {
       setLoadingProgress(true);
-      getStoryProgress(uid).then(progress => {
+      unsub = subscribeToStoryProgress(uid, (progress) => {
         if (progress) {
           setCurrentSceneId(progress.currentSceneId);
           setPhase(progress.phase);
@@ -63,6 +64,9 @@ export default function StoryMode({ engine, uid }: StoryModeProps) {
         setLoadingProgress(false);
       });
     }
+    return () => {
+      if (unsub) unsub();
+    };
   }, [uid]);
 
   const saveProgress = async (sceneId: number, p: MissionPhase, choiceIdx: number | null = selectedChoiceIndex) => {
